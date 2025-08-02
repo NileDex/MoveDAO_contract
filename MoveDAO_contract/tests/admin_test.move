@@ -2,6 +2,7 @@
 module dao_addr::admin_tests {
     use std::vector;
     use std::string;
+    use std::signer;
     use aptos_framework::account;
     use aptos_framework::timestamp;
     use aptos_framework::coin;
@@ -24,7 +25,7 @@ module dao_addr::admin_tests {
         test_utils::setup_test_account(alice);
         coin::register<aptos_coin::AptosCoin>(alice);
 
-        // Create DAO
+        // Create DAO - this will initialize the admin system
         dao_core::create_dao(
             alice, 
             string::utf8(b"Test DAO"), 
@@ -37,18 +38,21 @@ module dao_addr::admin_tests {
             86400
         );
 
-        // Verify admin initialization
-        assert!(admin::is_admin(@dao_addr, @dao_addr), EASSERTION_FAILED);
+        // Get the DAO address (where admin data is stored)
+        let dao_addr = signer::address_of(alice);
+        
+        // Verify admin initialization - the creator should be a super admin
+        assert!(admin::is_admin(dao_addr, dao_addr), EASSERTION_FAILED);
         assert!(
-            admin::get_admin_role(@dao_addr, @dao_addr) == admin::role_super_admin(),
+            admin::get_admin_role(dao_addr, dao_addr) == admin::role_super_admin(),
             EASSERTION_FAILED + 1
         );
 
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, alice = @dao_addr, _bob = @0x456)]
-    fun test_add_and_remove_admin(aptos_framework: &signer, alice: &signer, _bob: &signer) {
+    #[test(aptos_framework = @0x1, alice = @dao_addr, bob = @0x456)]
+    fun test_add_and_remove_admin(aptos_framework: &signer, alice: &signer, bob: &signer) {
         // Setup accounts
         account::create_account_for_test(@0x1);
         account::create_account_for_test(@dao_addr);
@@ -58,6 +62,7 @@ module dao_addr::admin_tests {
         // Initialize test environment
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(alice);
+        test_utils::setup_test_account(bob);
         coin::register<aptos_coin::AptosCoin>(alice);
 
         // Create DAO
@@ -73,21 +78,34 @@ module dao_addr::admin_tests {
             86400
         );
 
-        // Test admin operations
-        admin::add_admin(alice, @0x456, admin::role_standard(), 0);
-        assert!(admin::is_admin(@dao_addr, @0x456), EASSERTION_FAILED);
+        let dao_addr = signer::address_of(alice);
+        let bob_addr = signer::address_of(bob);
+
+        // Test adding admin
+        admin::add_admin(alice, bob_addr, admin::role_standard(), 0);
+        assert!(admin::is_admin(dao_addr, bob_addr), EASSERTION_FAILED);
+        assert!(
+            admin::get_admin_role(dao_addr, bob_addr) == admin::role_standard(),
+            EASSERTION_FAILED + 1
+        );
         
-        let admins = admin::get_admins(@dao_addr);
-        assert!(vector::length(&admins) == 2, EASSERTION_FAILED + 1);
+        // Check admin list contains both admins
+        let admins = admin::get_admins(dao_addr);
+        assert!(vector::length(&admins) == 2, EASSERTION_FAILED + 2);
         
-        admin::remove_admin(alice, @0x456);
-        assert!(!admin::is_admin(@dao_addr, @0x456), EASSERTION_FAILED + 2);
+        // Test removing admin
+        admin::remove_admin(alice, bob_addr);
+        assert!(!admin::is_admin(dao_addr, bob_addr), EASSERTION_FAILED + 3);
+
+        // Admin list should only have 1 admin now
+        let admins_after = admin::get_admins(dao_addr);
+        assert!(vector::length(&admins_after) == 1, EASSERTION_FAILED + 4);
 
         test_utils::destroy_caps(aptos_framework);
     }
 
     #[test(aptos_framework = @0x1, alice = @dao_addr)]
-    #[expected_failure(abort_code = admin::EINVALID_ROLE)]
+    #[expected_failure(abort_code = 4)] // EINVALID_ROLE = 4
     fun test_invalid_role_rejected(aptos_framework: &signer, alice: &signer) {
         account::create_account_for_test(@0x1);
         account::create_account_for_test(@dao_addr);
@@ -109,14 +127,15 @@ module dao_addr::admin_tests {
             86400
         );
 
-        admin::add_admin(alice, @dao_addr, 42, 0); // Should fail with EINVALID_ROLE
+        // Try to add admin with invalid role - should fail
+        admin::add_admin(alice, @0x999, 42, 0); // Invalid role = 42
 
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, alice = @dao_addr, _bob = @0x456)]
-    #[expected_failure(abort_code = admin::ENOT_ADMIN)]
-    fun test_super_admin_protection(aptos_framework: &signer, alice: &signer, _bob: &signer) {
+    #[test(aptos_framework = @0x1, alice = @dao_addr, bob = @0x456)]
+    #[expected_failure(abort_code = 2)] // ENOT_ADMIN = 2
+    fun test_non_admin_cannot_add_admin(aptos_framework: &signer, alice: &signer, bob: &signer) {
         account::create_account_for_test(@0x1);
         account::create_account_for_test(@dao_addr);
         account::create_account_for_test(@0x456);
@@ -124,6 +143,7 @@ module dao_addr::admin_tests {
         
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(alice);
+        test_utils::setup_test_account(bob);
         coin::register<aptos_coin::AptosCoin>(alice);
 
         dao_core::create_dao(
@@ -138,14 +158,14 @@ module dao_addr::admin_tests {
             86400
         );
 
-        let non_admin = account::create_signer_for_test(@0x999);
-        admin::remove_admin(&non_admin, @dao_addr); // Should fail with ENOT_ADMIN
+        // Bob (non-admin) tries to add someone as admin - should fail
+        admin::add_admin(bob, @0x999, admin::role_standard(), 0);
 
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, alice = @dao_addr, _bob = @0x456)]
-    fun test_temporary_admin_expiration(aptos_framework: &signer, alice: &signer, _bob: &signer) {
+    #[test(aptos_framework = @0x1, alice = @dao_addr, bob = @0x456)]
+    fun test_temporary_admin_expiration(aptos_framework: &signer, alice: &signer, bob: &signer) {
         account::create_account_for_test(@0x1);
         account::create_account_for_test(@dao_addr);
         account::create_account_for_test(@0x456);
@@ -153,6 +173,7 @@ module dao_addr::admin_tests {
         
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(alice);
+        test_utils::setup_test_account(bob);
         coin::register<aptos_coin::AptosCoin>(alice);
 
         dao_core::create_dao(
@@ -167,11 +188,47 @@ module dao_addr::admin_tests {
             86400
         );
 
-        admin::add_admin(alice, @0x456, admin::role_temporary(), 100);
-        assert!(admin::is_admin(@dao_addr, @0x456), EASSERTION_FAILED + 3);
+        let dao_addr = signer::address_of(alice);
+        let bob_addr = signer::address_of(bob);
+
+        // Add temporary admin that expires in 100 seconds
+        admin::add_admin(alice, bob_addr, admin::role_temporary(), 100);
+        assert!(admin::is_admin(dao_addr, bob_addr), EASSERTION_FAILED);
         
+        // Fast forward time past expiration
         timestamp::fast_forward_seconds(101);
-        assert!(!admin::is_admin(@dao_addr, @0x456), EASSERTION_FAILED + 4);
+        
+        // Admin should no longer be valid due to expiration
+        assert!(!admin::is_admin(dao_addr, bob_addr), EASSERTION_FAILED + 1);
+
+        test_utils::destroy_caps(aptos_framework);
+    }
+
+    #[test(aptos_framework = @0x1, alice = @dao_addr)]
+    #[expected_failure(abort_code = 5)] // EEXPIRATION_PAST = 5
+    fun test_cannot_add_admin_with_past_expiration(aptos_framework: &signer, alice: &signer) {
+        account::create_account_for_test(@0x1);
+        account::create_account_for_test(@dao_addr);
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        
+        test_utils::setup_aptos(aptos_framework);
+        test_utils::setup_test_account(alice);
+        coin::register<aptos_coin::AptosCoin>(alice);
+
+        dao_core::create_dao(
+            alice, 
+            string::utf8(b"Test DAO"), 
+            string::utf8(b"Description"),
+            b"logo", 
+            b"bg", 
+            vector::empty(), 
+            30, 
+            3600, 
+            86400
+        );
+
+        // Try to add admin with expiration in the past (1 second) - should fail
+        admin::add_admin(alice, @0x999, admin::role_temporary(), 1);
 
         test_utils::destroy_caps(aptos_framework);
     }

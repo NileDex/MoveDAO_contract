@@ -1,11 +1,13 @@
 module dao_addr::staking {
     use std::signer;
-    use std::string::{String, utf8};
+    use std::string::{Self as string, String};
     use std::vector;
     use aptos_framework::object;
     use aptos_framework::coin;
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::timestamp;
+    use dao_addr::admin;
+    use dao_addr::rewards;
 
     const EINSUFFICIENT_STAKE: u64 = 0;
     const EINVALID_UNSTAKE_AMOUNT: u64 = 1;
@@ -43,26 +45,32 @@ module dao_addr::staking {
         extend_ref: object::ExtendRef,
     }
 
-    fun init_module(sender: &signer) {
-        let vault_constructor_ref = &object::create_named_object(sender, VAULT_SEED);
+    public fun init_staking(account: &signer) {
+        let addr = signer::address_of(account);
+        assert!(!exists<Vault>(addr), 1);
+
+        let vault_constructor_ref = &object::create_named_object(account, VAULT_SEED);
         let vault_signer = &object::generate_signer(vault_constructor_ref);
 
-        move_to(vault_signer, Vault {
+        let vault = Vault {
             balance: coin::zero<AptosCoin>(),
             extend_ref: object::generate_extend_ref(vault_constructor_ref),
-        });
+        };
 
-        move_to(sender, VoteRepository {
+        let vote_repository = VoteRepository {
             votes: vector::empty(),
-        });
+        };
+
+        move_to(vault_signer, vault);
+        move_to(account, vote_repository);
     }
 
     #[test_only]
     public entry fun test_init_module(sender: &signer) {
-        init_module(sender);
+        init_staking(sender);
     }
 
-    public entry fun stake(acc_own: &signer, amount: u64) acquires StakedBalance, Vault {
+    public entry fun stake(acc_own: &signer, dao_addr: address, amount: u64) acquires StakedBalance, Vault {
         let from = signer::address_of(acc_own);
         let balance = coin::balance<AptosCoin>(from);
         assert!(balance >= amount, EINSUFFICIENT_BALANCE);
@@ -78,28 +86,28 @@ module dao_addr::staking {
         };
 
         let coins = coin::withdraw<AptosCoin>(acc_own, amount);
-        let vault = borrow_global_mut<Vault>(get_vault_addr());
+        let vault = borrow_global_mut<Vault>(get_vault_addr(dao_addr));
         coin::merge(&mut vault.balance, coins);
     }
 
-    public entry fun unstake(acc_own: &signer, amount: u64) acquires StakedBalance, Vault {
+    public entry fun unstake(acc_own: &signer, dao_addr: address, amount: u64) acquires StakedBalance, Vault {
         let from = signer::address_of(acc_own);
         let staked_balance = borrow_global_mut<StakedBalance>(from);
         let staked_amount = staked_balance.staked_balance;
         assert!(staked_amount >= amount, EINVALID_UNSTAKE_AMOUNT);
         
-        let vault = borrow_global_mut<Vault>(get_vault_addr());
+        let vault = borrow_global_mut<Vault>(get_vault_addr(dao_addr));
         let coins = coin::extract(&mut vault.balance, amount);
         coin::deposit(from, coins);
         
         staked_balance.staked_balance = staked_balance.staked_balance - amount;
     }
 
-    public entry fun create_vote(acc_own: &signer, title: String, description: String, start_time: u64, end_time: u64) acquires VoteRepository {
+    public entry fun create_vote(acc_own: &signer, dao_addr: address, title: String, description: String, start_time: u64, end_time: u64) acquires VoteRepository {
         let from = signer::address_of(acc_own);
         assert!(is_admin(from), ENOT_ADMIN);
 
-        let vote_repository = borrow_global_mut<VoteRepository>(from);
+        let vote_repository = borrow_global_mut<VoteRepository>(dao_addr);
         let vote = Vote {
             id: vector::length(&vote_repository.votes),
             title,
@@ -114,8 +122,8 @@ module dao_addr::staking {
         vector::push_back(&mut vote_repository.votes, vote);
     }
 
-    public entry fun vote(acc_own: &signer, vote_id: u64, amount: u64, is_yes_vote: bool) acquires VoteRepository, StakedBalance {
-        let vote_repository = borrow_global_mut<VoteRepository>(@dao_addr);
+    public entry fun vote(acc_own: &signer, dao_addr: address, vote_id: u64, amount: u64, is_yes_vote: bool) acquires VoteRepository, StakedBalance {
+        let vote_repository = borrow_global_mut<VoteRepository>(dao_addr);
         let vote = vector::borrow_mut(&mut vote_repository.votes, vote_id);
         assert!(vote.start_time <= timestamp::now_seconds() && vote.end_time >= timestamp::now_seconds(), EINVALID_VOTE_TIME);
 
@@ -134,11 +142,11 @@ module dao_addr::staking {
         vector::push_back(&mut vote.voters, from);
     }
 
-    public entry fun declare_winner(acc_own: &signer, vote_id: u64) acquires VoteRepository {
+    public entry fun declare_winner(acc_own: &signer, dao_addr: address, vote_id: u64) acquires VoteRepository {
         let from = signer::address_of(acc_own);
         assert!(is_admin(from), ENOT_ADMIN);
 
-        let vote_repository = borrow_global_mut<VoteRepository>(from);
+        let vote_repository = borrow_global_mut<VoteRepository>(dao_addr);
         let vote = vector::borrow_mut(&mut vote_repository.votes, vote_id);
         assert!(vote.end_time <= timestamp::now_seconds(), EINVALID_VOTE_TIME);
 
@@ -146,8 +154,8 @@ module dao_addr::staking {
     }
 
     #[view]
-    public fun get_vault_addr(): address {
-        object::create_object_address(&@dao_addr, VAULT_SEED)
+    public fun get_vault_addr(dao_addr: address): address {
+        object::create_object_address(&dao_addr, VAULT_SEED)
     }
 
     #[view]
@@ -157,8 +165,8 @@ module dao_addr::staking {
     }
 
     #[view]
-    public fun get_total_staked(): u64 acquires Vault {
-        coin::value(&borrow_global<Vault>(get_vault_addr()).balance)
+    public fun get_total_staked(dao_addr: address): u64 acquires Vault {
+        coin::value(&borrow_global<Vault>(get_vault_addr(dao_addr)).balance)
     }
 
     #[view]
@@ -166,8 +174,8 @@ module dao_addr::staking {
         exists<StakedBalance>(addr)
     }
 
-    fun get_vault_signer(): signer acquires Vault {
-        let vault = borrow_global<Vault>(get_vault_addr());
+    fun get_vault_signer(dao_addr: address): signer acquires Vault {
+        let vault = borrow_global<Vault>(get_vault_addr(dao_addr));
         object::generate_signer_for_extending(&vault.extend_ref)
     }
 
@@ -193,11 +201,11 @@ module dao_addr::staking {
         coin::register<AptosCoin>(alice);
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
 
-        stake(alice, 500);
+        stake(alice, @dao_addr, 500);
         assert!(get_staked_balance(@0x3) == 500, 100);
         assert!(is_staker(@0x3), 101);
 
-        unstake(alice, 200);
+        unstake(alice, @dao_addr, 200);
         assert!(get_staked_balance(@0x3) == 300, 102);
 
         coin::destroy_mint_cap(mint_cap);
@@ -218,10 +226,10 @@ module dao_addr::staking {
         coin::register<AptosCoin>(alice);
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
         
-        stake(alice, 500);
-        unstake(alice, 400);
-        unstake(alice, 100);
-        unstake(alice, 100); // Should fail
+        stake(alice, @dao_addr, 500);
+        unstake(alice, @dao_addr, 400);
+        unstake(alice, @dao_addr, 100);
+        unstake(alice, @dao_addr, 100); // Should fail
 
         coin::destroy_mint_cap(mint_cap);
         coin::destroy_burn_cap(burn_cap);
@@ -240,8 +248,8 @@ module dao_addr::staking {
         coin::register<AptosCoin>(alice);
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
 
-        stake(alice, 500);
-        stake(alice, 100);
+        stake(alice, @dao_addr, 500);
+        stake(alice, @dao_addr, 100);
         assert!(get_staked_balance(@0x3) == 600, 100);
 
         coin::destroy_mint_cap(mint_cap);
@@ -265,19 +273,19 @@ module dao_addr::staking {
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
         coin::deposit(@0x4, coin::mint(1000, &mint_cap));
 
-        create_vote(creator, utf8(b"Test Vote"), utf8(b"This is a test vote"), 100, 200);
-        stake(alice, 500);
-        stake(bob, 300);
+        create_vote(creator, @dao_addr, string::utf8(b"Test Vote"), string::utf8(b"This is a test vote"), 100, 200);
+        stake(alice, @dao_addr, 500);
+        stake(bob, @dao_addr, 300);
 
         timestamp::set_time_has_started_for_testing(aptos_framework);
         timestamp::update_global_time_for_test_secs(100);
 
-        vote(alice, 0, 500, true);
-        vote(bob, 0, 300, false);
-        unstake(alice, 200);
+        vote(alice, @dao_addr, 0, 500, true);
+        vote(bob, @dao_addr, 0, 300, false);
+        unstake(alice, @dao_addr, 200);
 
         timestamp::update_global_time_for_test_secs(200);
-        declare_winner(creator, 0);
+        declare_winner(creator, @dao_addr, 0);
 
         let vote_repository = borrow_global<VoteRepository>(@dao_addr);
         let vote = vector::borrow(&vote_repository.votes, 0);
@@ -306,10 +314,10 @@ module dao_addr::staking {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         timestamp::update_global_time_for_test_secs(100);
 
-        create_vote(creator, utf8(b"Test Vote"), utf8(b"This is a test vote"), 100, 200);
-        stake(alice, 500);
-        vote(alice, 0, 500, true);
-        vote(alice, 0, 500, true); // Should fail
+        create_vote(creator, @dao_addr, string::utf8(b"Test Vote"), string::utf8(b"This is a test vote"), 100, 200);
+        stake(alice, @dao_addr, 500);
+        vote(alice, @dao_addr, 0, 500, true);
+        vote(alice, @dao_addr, 0, 500, true); // Should fail
 
         coin::destroy_mint_cap(mint_cap);
         coin::destroy_burn_cap(burn_cap);
@@ -327,10 +335,36 @@ module dao_addr::staking {
         coin::register<AptosCoin>(&alice);
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
 
-        stake(&alice, 500);
-        assert!(get_total_staked() == 500, 100);
+        stake(&alice, @dao_addr, 500);
+        assert!(get_total_staked(@dao_addr) == 500, 100);
 
         coin::destroy_mint_cap(mint_cap);
         coin::destroy_burn_cap(burn_cap);
+    }
+
+    // Function to trigger staking rewards distribution
+    public entry fun distribute_staking_rewards(
+        admin: &signer,
+        dao_addr: address
+    ) {
+        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), ENOT_ADMIN);
+        
+        // Get all stakers and their balances (simplified approach)
+        // In a real implementation, you'd maintain a list of all stakers
+        let stakers = vector::empty<address>();
+        let staked_amounts = vector::empty<u64>();
+        
+        // For now, we'll add a manual way to distribute rewards
+        // A more sophisticated approach would maintain a registry of all stakers
+        rewards::distribute_staking_rewards(admin, dao_addr, stakers, staked_amounts);
+    }
+
+    // Helper function to get all stakers (placeholder for now)
+    public fun get_all_stakers(_dao_addr: address): (vector<address>, vector<u64>) {
+        // This is a simplified implementation
+        // In practice, you'd maintain a registry of all stakers in the contract
+        let stakers = vector::empty<address>();
+        let amounts = vector::empty<u64>();
+        (stakers, amounts)
     }
 }

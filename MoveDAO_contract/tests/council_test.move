@@ -42,21 +42,24 @@ module dao_addr::council_tests {
             86400
         );
 
+        let dao_addr = @0x123;
+        let council_obj = dao_core::get_council_object(dao_addr);
+        
         // Add first member
-        council::add_council_member(alice, @0x456);
-        let members1 = council::get_council_members(@0x123);
+        council::add_council_member_to_object(alice, council_obj, @0x456);
+        let members1 = council::get_council_members_from_object(council_obj);
         assert!(vector::length(&members1) == 1, EASSERTION_FAILED);
         assert!(vector::contains(&members1, &@0x456), EASSERTION_FAILED + 1);
 
         // Add second member
-        council::add_council_member(alice, @0x789);
-        let members2 = council::get_council_members(@0x123);
+        council::add_council_member_to_object(alice, council_obj, @0x789);
+        let members2 = council::get_council_members_from_object(council_obj);
         assert!(vector::length(&members2) == 2, EASSERTION_FAILED + 2);
         assert!(vector::contains(&members2, &@0x789), EASSERTION_FAILED + 3);
 
         // Remove first member
-        council::remove_council_member(alice, @0x456);
-        let members3 = council::get_council_members(@0x123);
+        council::remove_council_member_from_object(alice, council_obj, @0x456);
+        let members3 = council::get_council_members_from_object(council_obj);
         assert!(vector::length(&members3) == 1, EASSERTION_FAILED + 4);
         assert!(!vector::contains(&members3, &@0x456), EASSERTION_FAILED + 5);
 
@@ -88,8 +91,10 @@ module dao_addr::council_tests {
             86400
         );
 
+        let dao_addr = @0x123;
+        let council_obj = dao_core::get_council_object(dao_addr);
         let non_admin = account::create_signer_for_test(@0x999);
-        council::add_council_member(&non_admin, @0x456);
+        council::add_council_member_to_object(&non_admin, council_obj, @0x456);
 
         test_utils::destroy_caps(aptos_framework);
     }
@@ -118,8 +123,11 @@ module dao_addr::council_tests {
             86400
         );
 
+        let dao_addr = @0x123;
+        let council_obj = dao_core::get_council_object(dao_addr);
+        
         // Trying to remove non-existent member should fail
-        council::remove_council_member(alice, @0x999);
+        council::remove_council_member_from_object(alice, council_obj, @0x999);
 
         test_utils::destroy_caps(aptos_framework);
     }

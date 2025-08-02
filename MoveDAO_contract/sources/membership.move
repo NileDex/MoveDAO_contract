@@ -30,19 +30,23 @@ module dao_addr::membership {
         member: address
     }
 
-    public entry fun initialize(account: &signer) {
-        let _addr = signer::address_of(account);
-        if (!exists<MemberList>(@dao_addr)) {
-            move_to(account, MemberList {
+    public fun initialize(account: &signer) {
+        let addr = signer::address_of(account);
+        if (!exists<MemberList>(addr)) {
+            let member_list = MemberList {
                 members: simple_map::new(),
                 total_members: 0,
-            });
+            };
+
+            move_to(account, member_list);
+        } else {
+            abort EMEMBER_EXISTS
         }
     }
 
-    public entry fun join(account: &signer) acquires MemberList {
+    public entry fun join(account: &signer, dao_addr: address) acquires MemberList {
         let addr = signer::address_of(account);
-        let member_list = borrow_global_mut<MemberList>(@dao_addr);
+        let member_list = borrow_global_mut<MemberList>(dao_addr);
         
         assert!(!simple_map::contains_key(&member_list.members, &addr), EALREADY_MEMBER);
         
@@ -60,9 +64,9 @@ module dao_addr::membership {
         });
     }
 
-    public entry fun leave(account: &signer) acquires MemberList {
+    public entry fun leave(account: &signer, dao_addr: address) acquires MemberList {
         let addr = signer::address_of(account);
-        let member_list = borrow_global_mut<MemberList>(@dao_addr);
+        let member_list = borrow_global_mut<MemberList>(dao_addr);
         
         assert!(simple_map::contains_key(&member_list.members, &addr), ENOT_MEMBER);
         simple_map::remove(&mut member_list.members, &addr);
@@ -89,8 +93,8 @@ module dao_addr::membership {
     }
 
     #[view]
-    public fun total_voting_power(_dao_addr: address): u64 {
-        staking::get_total_staked()
+    public fun total_voting_power(dao_addr: address): u64 {
+        staking::get_total_staked(dao_addr)
     }
 
     public entry fun update_voting_power(_account: &signer) {

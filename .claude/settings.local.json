@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(aptos move test:*)"
+    ],
+    "deny": []
+  }
+}

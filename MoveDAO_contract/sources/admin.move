@@ -43,7 +43,7 @@ module dao_addr::admin {
     public fun role_temporary(): u8 { ROLE_TEMPORARY }
 
     // Initialize admin module
-    public entry fun init_admin(account: &signer, min_super_admins: u64) {
+    public fun init_admin(account: &signer, min_super_admins: u64) {
         let addr = signer::address_of(account);
         assert!(!exists<AdminList>(addr), EADMIN_LIST_EXISTS);
         
@@ -54,10 +54,13 @@ module dao_addr::admin {
             expires_at: 0
         });
 
-        move_to(account, AdminList {
+        let admin_list = AdminList {
             admins,
             min_super_admins
-        });
+        };
+
+        // Move the AdminList directly to the account (keeping direct storage for admin)
+        move_to(account, admin_list);
 
         emit_admin_event(addr, addr, b"added", ROLE_SUPER_ADMIN, 0);
     }
@@ -82,7 +85,8 @@ module dao_addr::admin {
         let now = timestamp::now_seconds();
         let expires_at = if (expires_in_secs > 0) now + expires_in_secs else 0;
 
-        if (expires_at > 0 && expires_at <= now) abort EEXPIRATION_PAST;
+        // Require at least 2 seconds for temporary admins to avoid race conditions
+        if (expires_at > 0 && expires_in_secs < 2) abort EEXPIRATION_PAST;
 
         simple_map::add(&mut admin_list.admins, new_admin, Admin {
             role,

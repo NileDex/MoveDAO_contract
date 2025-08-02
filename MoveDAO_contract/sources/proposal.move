@@ -7,6 +7,7 @@ module dao_addr::proposal {
     use dao_addr::admin;
     use dao_addr::membership;
     use dao_addr::staking;
+    use dao_addr::rewards;
 
     const STATUS_DRAFT: u8 = 0;
     const STATUS_ACTIVE: u8 = 1;
@@ -86,23 +87,30 @@ module dao_addr::proposal {
         weight: u64,
     }
 
-    public entry fun initialize_proposals(
+    public fun initialize_proposals(
         account: &signer,
         min_voting_period: u64,
         max_voting_period: u64
     ) {
-        if (!exists<DaoProposals>(@dao_addr)) {
-            move_to(account, DaoProposals {
+        let addr = signer::address_of(account);
+        if (!exists<DaoProposals>(addr)) {
+            let dao_proposals = DaoProposals {
                 proposals: vector::empty(),
                 next_id: 0,
                 min_voting_period,
                 max_voting_period,
-            });
+            };
+
+            move_to(account, dao_proposals);
+        } else {
+            // If already exists, abort
+            abort ENOT_AUTHORIZED
         }
     }
 
     public entry fun create_proposal(
         account: &signer,
+        dao_addr: address,
         title: string::String,
         description: string::String,
         voting_duration_secs: u64,
@@ -110,9 +118,9 @@ module dao_addr::proposal {
         min_quorum_percent: u64
     ) acquires DaoProposals {
         let sender = signer::address_of(account);
-        assert!(admin::is_admin(@dao_addr, sender) || membership::is_member(@dao_addr, sender), ENOT_AUTHORIZED);
+        assert!(admin::is_admin(dao_addr, sender) || membership::is_member(dao_addr, sender), ENOT_AUTHORIZED);
 
-        let proposals = borrow_global_mut<DaoProposals>(@dao_addr);
+        let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         assert!(voting_duration_secs >= proposals.min_voting_period, EINVALID_STATUS);
         assert!(voting_duration_secs <= proposals.max_voting_period, EINVALID_STATUS);
 
@@ -144,19 +152,23 @@ module dao_addr::proposal {
             proposer: sender,
             title: copy title,
         });
+
+        // Distribute proposal creation reward
+        rewards::distribute_proposal_creation_reward(dao_addr, sender, proposal_id);
     }
 
     public entry fun start_voting(
         account: &signer,
+        dao_addr: address,
         proposal_id: u64
     ) acquires DaoProposals {
         let sender = signer::address_of(account);
-        let proposals = borrow_global_mut<DaoProposals>(@dao_addr);
+        let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
 
         assert!(proposal.status == STATUS_DRAFT, EINVALID_STATUS);
         assert!(
-            proposal.proposer == sender || admin::is_admin(@dao_addr, sender), 
+            proposal.proposer == sender || admin::is_admin(dao_addr, sender), 
             ENOT_ADMIN_OR_PROPOSER
         );
 
@@ -171,15 +183,16 @@ module dao_addr::proposal {
 
     public entry fun cast_vote(
         account: &signer,
+        dao_addr: address,
         proposal_id: u64,
         vote_type: u8
     ) acquires DaoProposals {
         assert!(vote_type == VOTE_YES || vote_type == VOTE_NO || vote_type == VOTE_ABSTAIN, EINVALID_VOTE_TYPE);
         
         let sender = signer::address_of(account);
-        assert!(membership::is_member(@dao_addr, sender), ENOT_MEMBER);
+        assert!(membership::is_member(dao_addr, sender), ENOT_MEMBER);
         
-        let proposals = borrow_global_mut<DaoProposals>(@dao_addr);
+        let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
 
         assert!(proposal.status == STATUS_ACTIVE, EINVALID_STATUS);
@@ -195,7 +208,7 @@ module dao_addr::proposal {
             i = i + 1;
         };
 
-        let weight = membership::get_voting_power(@dao_addr, sender);
+        let weight = membership::get_voting_power(dao_addr, sender);
         assert!(weight > 0, ENOT_MEMBER);
         
         vector::push_back(&mut proposal.votes, Vote { 
@@ -219,21 +232,25 @@ module dao_addr::proposal {
             vote_type,
             weight,
         });
+
+        // Distribute voting reward
+        rewards::distribute_voting_reward(dao_addr, sender, proposal_id);
     }
 
     public entry fun finalize_proposal(
         account: &signer,
+        dao_addr: address,
         proposal_id: u64
     ) acquires DaoProposals {
         let _sender = signer::address_of(account);
-        let proposals = borrow_global_mut<DaoProposals>(@dao_addr);
+        let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
 
         assert!(proposal.status == STATUS_ACTIVE, EINVALID_STATUS);
         let now = timestamp::now_seconds();
         assert!(now >= proposal.voting_end, EVOTING_ENDED);
 
-        let total_staked = staking::get_total_staked();
+        let total_staked = staking::get_total_staked(dao_addr);
         let total_votes = proposal.yes_votes + proposal.no_votes;
         let quorum = if (total_staked > 0) {
             total_votes * 100 / total_staked
@@ -263,19 +280,25 @@ module dao_addr::proposal {
             new_status,
             reason: string::utf8(b"vote_majority")
         });
+
+        // Distribute successful proposal reward if it passed
+        if (new_status == STATUS_PASSED) {
+            rewards::distribute_successful_proposal_reward(dao_addr, proposal.proposer, proposal_id);
+        };
     }
 
     public entry fun execute_proposal(
         account: &signer,
+        dao_addr: address,
         proposal_id: u64
     ) acquires DaoProposals {
         let sender = signer::address_of(account);
-        let proposals = borrow_global_mut<DaoProposals>(@dao_addr);
+        let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
 
         assert!(proposal.status == STATUS_PASSED, EINVALID_STATUS);
         assert!(
-            admin::is_admin(@dao_addr, sender) || proposal.proposer == sender, 
+            admin::is_admin(dao_addr, sender) || proposal.proposer == sender, 
             ENOT_ADMIN_OR_PROPOSER
         );
         
@@ -295,10 +318,11 @@ module dao_addr::proposal {
 
     public entry fun cancel_proposal(
         account: &signer,
+        dao_addr: address,
         proposal_id: u64
     ) acquires DaoProposals {
         let sender = signer::address_of(account);
-        let proposals = borrow_global_mut<DaoProposals>(@dao_addr);
+        let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
 
         assert!(
@@ -306,7 +330,7 @@ module dao_addr::proposal {
             ECANNOT_CANCEL
         );
         assert!(
-            admin::is_admin(@dao_addr, sender) || proposal.proposer == sender,
+            admin::is_admin(dao_addr, sender) || proposal.proposer == sender,
             ENOT_ADMIN_OR_PROPOSER
         );
 
@@ -322,22 +346,22 @@ module dao_addr::proposal {
     }
 
     #[view]
-    public fun get_proposal_status(proposal_id: u64): u8 acquires DaoProposals {
-        let proposals = &borrow_global<DaoProposals>(@dao_addr).proposals;
+    public fun get_proposal_status(dao_addr: address, proposal_id: u64): u8 acquires DaoProposals {
+        let proposals = &borrow_global<DaoProposals>(dao_addr).proposals;
         let proposal = find_proposal(proposals, proposal_id);
         proposal.status
     }
 
     #[view]
-    public fun get_proposal(proposal_id: u64): Proposal acquires DaoProposals {
-        let proposals = &borrow_global<DaoProposals>(@dao_addr).proposals;
+    public fun get_proposal(dao_addr: address, proposal_id: u64): Proposal acquires DaoProposals {
+        let proposals = &borrow_global<DaoProposals>(dao_addr).proposals;
         let proposal = find_proposal(proposals, proposal_id);
         *proposal
     }
 
     #[view]
-    public fun get_proposals_count(): u64 acquires DaoProposals {
-        vector::length(&borrow_global<DaoProposals>(@dao_addr).proposals)
+    public fun get_proposals_count(dao_addr: address): u64 acquires DaoProposals {
+        vector::length(&borrow_global<DaoProposals>(dao_addr).proposals)
     }
 
     fun find_proposal(proposals: &vector<Proposal>, proposal_id: u64): &Proposal {
