@@ -34,7 +34,7 @@ build/
 .vscode/
 *.swp
 *.swo
-
+.claude/
 # OS-specific files
 .DS_Store
 Thumbs.db
