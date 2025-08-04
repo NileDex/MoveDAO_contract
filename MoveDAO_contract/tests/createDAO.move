@@ -29,6 +29,7 @@ module dao_addr::create_dao_tests {
         let logo = b"logo";
         let background = b"bg";
         let initial_council = vector::empty<address>();
+        vector::push_back(&mut initial_council, signer::address_of(creator));
         let min_voting_period = 3600u64;
         let max_voting_period = 86400u64;
 

@@ -82,7 +82,7 @@ module dao_addr::treasury_test {
     }
 
     #[test(aptos_framework = @0x1, alice = @0x123)]
-    #[expected_failure(abort_code = 2)] // ENOT_ADMIN = 2
+    #[expected_failure(abort_code = 10, location = dao_addr::treasury)] // errors::not_admin() = 10
     fun test_non_admin_cannot_withdraw(aptos_framework: &signer, alice: &signer) {
         account::create_account_for_test(@0x1);
         account::create_account_for_test(@0x123);

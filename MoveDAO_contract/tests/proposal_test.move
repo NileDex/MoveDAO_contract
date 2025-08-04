@@ -31,6 +31,7 @@ module dao_addr::proposal_tests {
         test_utils::setup_test_account(dao_admin);
 
         let initial_council = vector::empty<address>();
+        vector::push_back(&mut initial_council, signer::address_of(dao_admin));
         dao_core::create_dao(
             dao_admin,
             string::utf8(b"Test DAO"),
@@ -96,13 +97,13 @@ module dao_addr::proposal_tests {
 
         // Cast votes - total 200 votes (proposer + voter1)
         // This is 66.66% of total staked - below 75% requirement
-        proposal::cast_vote(&proposer, dao_addr, 0, proposal::vote_yes());
-        proposal::cast_vote(&voter1, dao_addr, 0, proposal::vote_yes());
+        proposal::cast_vote(&proposer, dao_addr, 0, 1); // vote_yes
+        proposal::cast_vote(&voter1, dao_addr, 0, 1); // vote_yes
 
         // Finalize - should reject due to quorum not met
         timestamp::fast_forward_seconds(3601);
         proposal::finalize_proposal(dao_admin, dao_addr, 0);
-        assert!(proposal::get_proposal_status(dao_addr, 0) == proposal::status_rejected(), EASSERTION_FAILED + 1);
+        assert!(proposal::get_proposal_status(dao_addr, 0) == 3, EASSERTION_FAILED + 1); // status_rejected
 
         // Create another proposal with 50% quorum that should pass
         proposal::create_proposal(
@@ -117,13 +118,13 @@ module dao_addr::proposal_tests {
         proposal::start_voting(&proposer, dao_addr, 1);
 
         // Cast votes - total 200 votes meets 50% of 300 requirement
-        proposal::cast_vote(&proposer, dao_addr, 1, proposal::vote_yes());
-        proposal::cast_vote(&voter1, dao_addr, 1, proposal::vote_no());
+        proposal::cast_vote(&proposer, dao_addr, 1, 1); // vote_yes
+        proposal::cast_vote(&voter1, dao_addr, 1, 2); // vote_no
 
         // Finalize - should pass quorum but reject due to votes (tie broken by no votes)
         timestamp::fast_forward_seconds(3601);
         proposal::finalize_proposal(dao_admin, dao_addr, 1);
-        assert!(proposal::get_proposal_status(dao_addr, 1) == proposal::status_rejected(), EASSERTION_FAILED + 2);
+        assert!(proposal::get_proposal_status(dao_addr, 1) == 3, EASSERTION_FAILED + 2); // status_rejected
 
         // Create third proposal with 50% quorum that should pass
         proposal::create_proposal(
@@ -138,13 +139,13 @@ module dao_addr::proposal_tests {
         proposal::start_voting(&proposer, dao_addr, 2);
 
         // Cast votes - total 200 votes meets 50% of 300 requirement
-        proposal::cast_vote(&proposer, dao_addr, 2, proposal::vote_yes());
-        proposal::cast_vote(&voter2, dao_addr, 2, proposal::vote_yes());
+        proposal::cast_vote(&proposer, dao_addr, 2, 1); // vote_yes
+        proposal::cast_vote(&voter2, dao_addr, 2, 1); // vote_yes
 
         // Finalize - should pass both quorum and vote majority
         timestamp::fast_forward_seconds(3601);
         proposal::finalize_proposal(dao_admin, dao_addr, 2);
-        assert!(proposal::get_proposal_status(dao_addr, 2) == proposal::status_passed(), EASSERTION_FAILED + 3);
+        assert!(proposal::get_proposal_status(dao_addr, 2) == 2, EASSERTION_FAILED + 3); // status_passed
 
         test_utils::destroy_caps(aptos_framework);
     }
@@ -168,23 +169,23 @@ module dao_addr::proposal_tests {
             30
         );
 
-        assert!(proposal::get_proposal_status(dao_addr, 0) == proposal::status_draft(), EASSERTION_FAILED + 4);
+        assert!(proposal::get_proposal_status(dao_addr, 0) == 0, EASSERTION_FAILED + 4); // status_draft
         proposal::start_voting(&proposer, dao_addr, 0);
-        assert!(proposal::get_proposal_status(dao_addr, 0) == proposal::status_active(), EASSERTION_FAILED + 5);
+        assert!(proposal::get_proposal_status(dao_addr, 0) == 1, EASSERTION_FAILED + 5); // status_active
 
         timestamp::fast_forward_seconds(1);
-        proposal::cast_vote(&voter1, dao_addr, 0, proposal::vote_yes());
-        proposal::cast_vote(&voter2, dao_addr, 0, proposal::vote_no());
+        proposal::cast_vote(&voter1, dao_addr, 0, 1); // vote_yes
+        proposal::cast_vote(&voter2, dao_addr, 0, 2); // vote_no
 
         timestamp::fast_forward_seconds(86401);
         proposal::finalize_proposal(dao_admin, dao_addr, 0);
-        assert!(proposal::get_proposal_status(dao_addr, 0) == proposal::status_rejected(), EASSERTION_FAILED + 6);
+        assert!(proposal::get_proposal_status(dao_addr, 0) == 3, EASSERTION_FAILED + 6); // status_rejected
 
         test_utils::destroy_caps(aptos_framework);
     }
 
     #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
-    #[expected_failure(abort_code = 101)] // EINVALID_STATUS = 101
+    #[expected_failure(abort_code = 6, location = dao_addr::proposal)] // errors::invalid_status() = 6
     fun test_cannot_vote_before_voting_period(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 
@@ -202,7 +203,7 @@ module dao_addr::proposal_tests {
         );
 
         // Try to vote on draft proposal (not started yet) - should fail
-        proposal::cast_vote(&voter1, dao_addr, 0, proposal::vote_yes());
+        proposal::cast_vote(&voter1, dao_addr, 0, 1); // vote_yes
         test_utils::destroy_caps(aptos_framework);
     }
 
@@ -225,22 +226,22 @@ module dao_addr::proposal_tests {
         );
         proposal::start_voting(&proposer, dao_addr, 0);
 
-        proposal::cast_vote(&proposer, dao_addr, 0, proposal::vote_yes());
-        proposal::cast_vote(&voter1, dao_addr, 0, proposal::vote_yes());
-        proposal::cast_vote(&voter2, dao_addr, 0, proposal::vote_no());
+        proposal::cast_vote(&proposer, dao_addr, 0, 1); // vote_yes
+        proposal::cast_vote(&voter1, dao_addr, 0, 1); // vote_yes
+        proposal::cast_vote(&voter2, dao_addr, 0, 2); // vote_no
 
         timestamp::fast_forward_seconds(3601);
         proposal::finalize_proposal(dao_admin, dao_addr, 0);
-        assert!(proposal::get_proposal_status(dao_addr, 0) == proposal::status_passed(), EASSERTION_FAILED + 7);
+        assert!(proposal::get_proposal_status(dao_addr, 0) == 2, EASSERTION_FAILED + 7); // status_passed
 
         proposal::execute_proposal(dao_admin, dao_addr, 0);
-        assert!(proposal::get_proposal_status(dao_addr, 0) == proposal::status_executed(), EASSERTION_FAILED + 8);
+        assert!(proposal::get_proposal_status(dao_addr, 0) == 4, EASSERTION_FAILED + 8); // status_executed
 
         test_utils::destroy_caps(aptos_framework);
     }
 
     #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
-    #[expected_failure(abort_code = 100)] // ENOT_AUTHORIZED = 100
+    #[expected_failure(abort_code = 9, location = dao_addr::proposal)] // errors::not_authorized() = 9
     fun test_non_member_proposal_fails(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 
@@ -261,7 +262,7 @@ module dao_addr::proposal_tests {
     }
 
     #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
-    #[expected_failure(abort_code = 104)] // EALREADY_VOTED = 104
+    #[expected_failure(abort_code = 202, location = dao_addr::proposal)] // errors::already_voted() = 202
     fun test_cannot_vote_twice(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 
@@ -279,14 +280,14 @@ module dao_addr::proposal_tests {
         );
         proposal::start_voting(&proposer, dao_addr, 0);
 
-        proposal::cast_vote(&voter1, dao_addr, 0, proposal::vote_yes());
-        proposal::cast_vote(&voter1, dao_addr, 0, proposal::vote_no()); // Should fail
+        proposal::cast_vote(&voter1, dao_addr, 0, 1); // vote_yes
+        proposal::cast_vote(&voter1, dao_addr, 0, 2); // vote_no - Should fail
 
         test_utils::destroy_caps(aptos_framework);
     }
 
     #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
-    #[expected_failure(abort_code = 103)] // EVOTING_ENDED = 103
+    #[expected_failure(abort_code = 201, location = dao_addr::proposal)] // errors::voting_ended() = 201
     fun test_cannot_vote_after_deadline(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 
@@ -308,7 +309,7 @@ module dao_addr::proposal_tests {
         timestamp::fast_forward_seconds(3601);
         
         // Try to vote after deadline - should fail
-        proposal::cast_vote(&voter1, dao_addr, 0, proposal::vote_yes());
+        proposal::cast_vote(&voter1, dao_addr, 0, 1); // vote_yes
 
         test_utils::destroy_caps(aptos_framework);
     }
@@ -331,7 +332,7 @@ module dao_addr::proposal_tests {
 
         // Cancel draft proposal
         proposal::cancel_proposal(&proposer, dao_addr, 0);
-        assert!(proposal::get_proposal_status(dao_addr, 0) == proposal::status_cancelled(), EASSERTION_FAILED + 9);
+        assert!(proposal::get_proposal_status(dao_addr, 0) == 5, EASSERTION_FAILED + 9); // status_cancelled
 
         // Create another proposal and cancel during active voting
         proposal::create_proposal(
@@ -346,7 +347,7 @@ module dao_addr::proposal_tests {
         proposal::start_voting(&proposer, dao_addr, 1);
         
         proposal::cancel_proposal(&proposer, dao_addr, 1);
-        assert!(proposal::get_proposal_status(dao_addr, 1) == proposal::status_cancelled(), EASSERTION_FAILED + 10);
+        assert!(proposal::get_proposal_status(dao_addr, 1) == 5, EASSERTION_FAILED + 10); // status_cancelled
 
         test_utils::destroy_caps(aptos_framework);
     }

@@ -8,37 +8,57 @@ module dao_addr::proposal {
     use dao_addr::membership;
     use dao_addr::staking;
     use dao_addr::rewards;
+    use dao_addr::errors;
 
-    const STATUS_DRAFT: u8 = 0;
-    const STATUS_ACTIVE: u8 = 1;
-    const STATUS_PASSED: u8 = 2;
-    const STATUS_REJECTED: u8 = 3;
-    const STATUS_EXECUTED: u8 = 4;
-    const STATUS_CANCELLED: u8 = 5;
+    // Proposal Status Enum
+    struct ProposalStatus has copy, drop, store {
+        value: u8
+    }
 
-    const VOTE_YES: u8 = 1;
-    const VOTE_NO: u8 = 2;
-    const VOTE_ABSTAIN: u8 = 3;
+    // Status constructors
+    public fun status_draft(): ProposalStatus { ProposalStatus { value: 0 } }
+    public fun status_active(): ProposalStatus { ProposalStatus { value: 1 } }
+    public fun status_passed(): ProposalStatus { ProposalStatus { value: 2 } }
+    public fun status_rejected(): ProposalStatus { ProposalStatus { value: 3 } }
+    public fun status_executed(): ProposalStatus { ProposalStatus { value: 4 } }
+    public fun status_cancelled(): ProposalStatus { ProposalStatus { value: 5 } }
 
-    const ENOT_AUTHORIZED: u64 = 100;
-    const EINVALID_STATUS: u64 = 101;
-    const EVOTING_NOT_STARTED: u64 = 102;
-    const EVOTING_ENDED: u64 = 103;
-    const EALREADY_VOTED: u64 = 104;
-    const ENO_SUCH_PROPOSAL: u64 = 105;
-    const EQUORUM_NOT_MET: u64 = 106;
-    const EEXECUTION_WINDOW_EXPIRED: u64 = 107;
-    const ENOT_ADMIN_OR_PROPOSER: u64 = 108;
-    const ECANNOT_CANCEL: u64 = 109;
-    const EINVALID_VOTE_TYPE: u64 = 110;
-    const ENOT_MEMBER: u64 = 111;
+    // Status checkers
+    public fun is_draft(status: &ProposalStatus): bool { status.value == 0 }
+    public fun is_active(status: &ProposalStatus): bool { status.value == 1 }
+    public fun is_passed(status: &ProposalStatus): bool { status.value == 2 }
+    public fun is_rejected(status: &ProposalStatus): bool { status.value == 3 }
+    public fun is_executed(status: &ProposalStatus): bool { status.value == 4 }
+    public fun is_cancelled(status: &ProposalStatus): bool { status.value == 5 }
+
+    // Get status value for events and external use
+    public fun get_status_value(status: &ProposalStatus): u8 { status.value }
+
+    // Vote Type Enum
+    struct VoteType has copy, drop, store {
+        value: u8
+    }
+
+    // Vote type constructors
+    public fun vote_yes(): VoteType { VoteType { value: 1 } }
+    public fun vote_no(): VoteType { VoteType { value: 2 } }
+    public fun vote_abstain(): VoteType { VoteType { value: 3 } }
+
+    // Vote type checkers
+    public fun is_yes_vote(vote_type: &VoteType): bool { vote_type.value == 1 }
+    public fun is_no_vote(vote_type: &VoteType): bool { vote_type.value == 2 }
+    public fun is_abstain_vote(vote_type: &VoteType): bool { vote_type.value == 3 }
+
+    // Get vote type value
+    public fun get_vote_type_value(vote_type: &VoteType): u8 { vote_type.value }
+
 
     struct Proposal has store, copy, drop {
         id: u64,
         title: string::String,
         description: string::String,
         proposer: address,
-        status: u8,
+        status: ProposalStatus,
         votes: vector<Vote>,
         yes_votes: u64,
         no_votes: u64,
@@ -52,7 +72,7 @@ module dao_addr::proposal {
 
     struct Vote has store, copy, drop {
         voter: address,
-        vote_type: u8,
+        vote_type: VoteType,
         weight: u64,
         voted_at: u64
     }
@@ -104,7 +124,7 @@ module dao_addr::proposal {
             move_to(account, dao_proposals);
         } else {
             // If already exists, abort
-            abort ENOT_AUTHORIZED
+            abort errors::not_authorized()
         }
     }
 
@@ -118,11 +138,11 @@ module dao_addr::proposal {
         min_quorum_percent: u64
     ) acquires DaoProposals {
         let sender = signer::address_of(account);
-        assert!(admin::is_admin(dao_addr, sender) || membership::is_member(dao_addr, sender), ENOT_AUTHORIZED);
+        assert!(admin::is_admin(dao_addr, sender) || membership::is_member(dao_addr, sender), errors::not_authorized());
 
         let proposals = borrow_global_mut<DaoProposals>(dao_addr);
-        assert!(voting_duration_secs >= proposals.min_voting_period, EINVALID_STATUS);
-        assert!(voting_duration_secs <= proposals.max_voting_period, EINVALID_STATUS);
+        assert!(voting_duration_secs >= proposals.min_voting_period, errors::invalid_status());
+        assert!(voting_duration_secs <= proposals.max_voting_period, errors::invalid_status());
 
         let now = timestamp::now_seconds();
         let proposal_id = proposals.next_id;
@@ -132,7 +152,7 @@ module dao_addr::proposal {
             title,
             description,
             proposer: sender,
-            status: STATUS_DRAFT,
+            status: status_draft(),
             votes: vector::empty(),
             yes_votes: 0,
             no_votes: 0,
@@ -166,17 +186,17 @@ module dao_addr::proposal {
         let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
 
-        assert!(proposal.status == STATUS_DRAFT, EINVALID_STATUS);
+        assert!(is_draft(&proposal.status), errors::invalid_status());
         assert!(
             proposal.proposer == sender || admin::is_admin(dao_addr, sender), 
-            ENOT_ADMIN_OR_PROPOSER
+            errors::not_admin_or_proposer()
         );
 
-        proposal.status = STATUS_ACTIVE;
+        proposal.status = status_active();
         event::emit(ProposalStatusChangedEvent {
             proposal_id,
-            old_status: STATUS_DRAFT,
-            new_status: STATUS_ACTIVE,
+            old_status: get_status_value(&status_draft()),
+            new_status: get_status_value(&status_active()),
             reason: string::utf8(b"voting_started")
         });
     }
@@ -187,42 +207,59 @@ module dao_addr::proposal {
         proposal_id: u64,
         vote_type: u8
     ) acquires DaoProposals {
-        assert!(vote_type == VOTE_YES || vote_type == VOTE_NO || vote_type == VOTE_ABSTAIN, EINVALID_VOTE_TYPE);
+        assert!(vote_type == 1 || vote_type == 2 || vote_type == 3, errors::invalid_vote_type());
         
         let sender = signer::address_of(account);
-        assert!(membership::is_member(dao_addr, sender), ENOT_MEMBER);
+        assert!(membership::is_member(dao_addr, sender), errors::not_member());
         
         let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
 
-        assert!(proposal.status == STATUS_ACTIVE, EINVALID_STATUS);
+        assert!(is_active(&proposal.status), errors::invalid_status());
         let now = timestamp::now_seconds();
-        assert!(now >= proposal.voting_start, EVOTING_NOT_STARTED);
-        assert!(now <= proposal.voting_end, EVOTING_ENDED);
+        assert!(now >= proposal.voting_start, errors::voting_not_started());
+        assert!(now <= proposal.voting_end, errors::voting_ended());
 
         let i = 0;
         let len = vector::length(&proposal.votes);
         while (i < len) {
             let vote = vector::borrow(&proposal.votes, i);
-            if (vote.voter == sender) abort EALREADY_VOTED;
+            if (vote.voter == sender) abort errors::already_voted();
             i = i + 1;
         };
 
-        let weight = membership::get_voting_power(dao_addr, sender);
-        assert!(weight > 0, ENOT_MEMBER);
+        // Get voting power directly from staking balance to prevent race conditions
+        let weight = staking::get_staked_balance(sender);
+        assert!(weight > 0, errors::not_member());
+        
+        // Double-check via membership module for consistency
+        let membership_power = membership::get_voting_power(dao_addr, sender);
+        assert!(weight == membership_power, errors::invalid_amount());
+        
+        let vote_enum = if (vote_type == 1) {
+            vote_yes()
+        } else if (vote_type == 2) {
+            vote_no()
+        } else {
+            vote_abstain()
+        };
         
         vector::push_back(&mut proposal.votes, Vote { 
             voter: sender, 
-            vote_type, 
+            vote_type: vote_enum, 
             weight,
             voted_at: now
         });
 
-        if (vote_type == VOTE_YES) {
+        // Add overflow protection for vote counting
+        if (vote_type == 1) {
+            assert!(proposal.yes_votes <= (18446744073709551615u64 - weight), errors::invalid_amount());
             proposal.yes_votes = proposal.yes_votes + weight;
-        } else if (vote_type == VOTE_NO) {
+        } else if (vote_type == 2) {
+            assert!(proposal.no_votes <= (18446744073709551615u64 - weight), errors::invalid_amount());
             proposal.no_votes = proposal.no_votes + weight;
         } else {
+            assert!(proposal.abstain_votes <= (18446744073709551615u64 - weight), errors::invalid_amount());
             proposal.abstain_votes = proposal.abstain_votes + weight;
         };
 
@@ -246,33 +283,38 @@ module dao_addr::proposal {
         let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
 
-        assert!(proposal.status == STATUS_ACTIVE, EINVALID_STATUS);
+        assert!(is_active(&proposal.status), errors::invalid_status());
         let now = timestamp::now_seconds();
-        assert!(now >= proposal.voting_end, EVOTING_ENDED);
+        assert!(now >= proposal.voting_end, errors::voting_ended());
 
         let total_staked = staking::get_total_staked(dao_addr);
-        let total_votes = proposal.yes_votes + proposal.no_votes;
+        let total_votes = proposal.yes_votes + proposal.no_votes + proposal.abstain_votes;
+        
+        // Ensure votes cannot exceed total staked amount (critical security check)
+        assert!(total_votes <= total_staked, errors::invalid_amount());
+        
         let quorum = if (total_staked > 0) {
-            total_votes * 100 / total_staked
+            (total_votes * 100) / total_staked
         } else {
             0
         };
         
         if (quorum < proposal.min_quorum_percent) {
-            let old_status = proposal.status;
-            proposal.status = STATUS_REJECTED;
+            let old_status = get_status_value(&proposal.status);
+            proposal.status = status_rejected();
             event::emit(ProposalStatusChangedEvent {
                 proposal_id,
                 old_status,
-                new_status: STATUS_REJECTED,
+                new_status: get_status_value(&status_rejected()),
                 reason: string::utf8(b"quorum_not_met")
             });
             return
         };
 
-        let new_status = if (proposal.yes_votes > proposal.no_votes) STATUS_PASSED else STATUS_REJECTED;
-        let old_status = proposal.status;
-        proposal.status = new_status;
+        let new_status_enum = if (proposal.yes_votes > proposal.no_votes) status_passed() else status_rejected();
+        let old_status = get_status_value(&proposal.status);
+        let new_status = get_status_value(&new_status_enum);
+        proposal.status = new_status_enum;
         
         event::emit(ProposalStatusChangedEvent {
             proposal_id,
@@ -282,7 +324,7 @@ module dao_addr::proposal {
         });
 
         // Distribute successful proposal reward if it passed
-        if (new_status == STATUS_PASSED) {
+        if (is_passed(&proposal.status)) {
             rewards::distribute_successful_proposal_reward(dao_addr, proposal.proposer, proposal_id);
         };
     }
@@ -296,22 +338,22 @@ module dao_addr::proposal {
         let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
 
-        assert!(proposal.status == STATUS_PASSED, EINVALID_STATUS);
+        assert!(is_passed(&proposal.status), errors::invalid_status());
         assert!(
             admin::is_admin(dao_addr, sender) || proposal.proposer == sender, 
-            ENOT_ADMIN_OR_PROPOSER
+            errors::not_admin_or_proposer()
         );
         
         let now = timestamp::now_seconds();
-        assert!(now <= proposal.voting_end + proposal.execution_window, EEXECUTION_WINDOW_EXPIRED);
+        assert!(now <= proposal.voting_end + proposal.execution_window, errors::execution_window_expired());
 
-        let old_status = proposal.status;
-        proposal.status = STATUS_EXECUTED;
+        let old_status = get_status_value(&proposal.status);
+        proposal.status = status_executed();
         
         event::emit(ProposalStatusChangedEvent {
             proposal_id,
             old_status,
-            new_status: STATUS_EXECUTED,
+            new_status: get_status_value(&status_executed()),
             reason: string::utf8(b"executed")
         });
     }
@@ -326,21 +368,21 @@ module dao_addr::proposal {
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
 
         assert!(
-            proposal.status == STATUS_DRAFT || proposal.status == STATUS_ACTIVE,
-            ECANNOT_CANCEL
+            is_draft(&proposal.status) || is_active(&proposal.status),
+            errors::cannot_cancel()
         );
         assert!(
             admin::is_admin(dao_addr, sender) || proposal.proposer == sender,
-            ENOT_ADMIN_OR_PROPOSER
+            errors::not_admin_or_proposer()
         );
 
-        let old_status = proposal.status;
-        proposal.status = STATUS_CANCELLED;
+        let old_status = get_status_value(&proposal.status);
+        proposal.status = status_cancelled();
         
         event::emit(ProposalStatusChangedEvent {
             proposal_id,
             old_status,
-            new_status: STATUS_CANCELLED,
+            new_status: get_status_value(&status_cancelled()),
             reason: string::utf8(b"cancelled")
         });
     }
@@ -349,7 +391,7 @@ module dao_addr::proposal {
     public fun get_proposal_status(dao_addr: address, proposal_id: u64): u8 acquires DaoProposals {
         let proposals = &borrow_global<DaoProposals>(dao_addr).proposals;
         let proposal = find_proposal(proposals, proposal_id);
-        proposal.status
+        get_status_value(&proposal.status)
     }
 
     #[view]
@@ -371,7 +413,7 @@ module dao_addr::proposal {
             if (proposal.id == proposal_id) return proposal;
             i = i + 1;
         };
-        abort ENO_SUCH_PROPOSAL
+        abort errors::no_such_proposal()
     }
 
     fun find_proposal_mut(proposals: &mut vector<Proposal>, proposal_id: u64): &mut Proposal {
@@ -381,17 +423,17 @@ module dao_addr::proposal {
             if (proposal.id == proposal_id) return proposal;
             i = i + 1;
         };
-        abort ENO_SUCH_PROPOSAL
+        abort errors::no_such_proposal()
     }
 
-    #[view] public fun status_draft(): u8 { STATUS_DRAFT }
-    #[view] public fun status_active(): u8 { STATUS_ACTIVE }
-    #[view] public fun status_passed(): u8 { STATUS_PASSED }
-    #[view] public fun status_rejected(): u8 { STATUS_REJECTED }
-    #[view] public fun status_executed(): u8 { STATUS_EXECUTED }
-    #[view] public fun status_cancelled(): u8 { STATUS_CANCELLED }
+    #[view] public fun get_status_draft(): u8 { get_status_value(&status_draft()) }
+    #[view] public fun get_status_active(): u8 { get_status_value(&status_active()) }
+    #[view] public fun get_status_passed(): u8 { get_status_value(&status_passed()) }
+    #[view] public fun get_status_rejected(): u8 { get_status_value(&status_rejected()) }
+    #[view] public fun get_status_executed(): u8 { get_status_value(&status_executed()) }
+    #[view] public fun get_status_cancelled(): u8 { get_status_value(&status_cancelled()) }
     
-    #[view] public fun vote_yes(): u8 { VOTE_YES }
-    #[view] public fun vote_no(): u8 { VOTE_NO }
-    #[view] public fun vote_abstain(): u8 { VOTE_ABSTAIN }
+    #[view] public fun get_vote_yes(): u8 { get_vote_type_value(&vote_yes()) }
+    #[view] public fun get_vote_no(): u8 { get_vote_type_value(&vote_no()) }
+    #[view] public fun get_vote_abstain(): u8 { get_vote_type_value(&vote_abstain()) }
 }

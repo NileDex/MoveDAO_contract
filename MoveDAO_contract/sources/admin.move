@@ -4,18 +4,12 @@ module dao_addr::admin {
     use std::simple_map::{Self, SimpleMap};
     use std::event;
     use aptos_framework::timestamp;
+    use dao_addr::errors;
 
     // Role constants
     const ROLE_SUPER_ADMIN: u8 = 255;
     const ROLE_STANDARD: u8 = 100;
     const ROLE_TEMPORARY: u8 = 50;
-
-    // Error codes
-    const EADMIN_LIST_EXISTS: u64 = 1;
-    const ENOT_ADMIN: u64 = 2;
-    const EADMIN_NOT_FOUND: u64 = 3;
-    const EINVALID_ROLE: u64 = 4;
-    const EEXPIRATION_PAST: u64 = 5;
 
     struct Admin has store, copy, drop {
         role: u8,
@@ -45,7 +39,7 @@ module dao_addr::admin {
     // Initialize admin module
     public fun init_admin(account: &signer, min_super_admins: u64) {
         let addr = signer::address_of(account);
-        assert!(!exists<AdminList>(addr), EADMIN_LIST_EXISTS);
+        errors::require_not_exists(!exists<AdminList>(addr), errors::admin_list_exists());
         
         let admins = simple_map::new();
         simple_map::add(&mut admins, addr, Admin {
@@ -68,6 +62,7 @@ module dao_addr::admin {
     // Add new admin
     public entry fun add_admin(
         admin_account: &signer,
+        dao_addr: address,
         new_admin: address,
         role: u8,
         expires_in_secs: u64
@@ -76,17 +71,17 @@ module dao_addr::admin {
             role == ROLE_SUPER_ADMIN || 
             role == ROLE_STANDARD || 
             role == ROLE_TEMPORARY, 
-            EINVALID_ROLE
+            errors::invalid_role()
         );
         
-        let dao_addr = signer::address_of(admin_account);
-        assert!(is_admin(dao_addr, signer::address_of(admin_account)), ENOT_ADMIN);
+        let admin_addr = signer::address_of(admin_account);
+        errors::require_admin(is_admin(dao_addr, admin_addr));
         let admin_list = borrow_global_mut<AdminList>(dao_addr);
         let now = timestamp::now_seconds();
         let expires_at = if (expires_in_secs > 0) now + expires_in_secs else 0;
 
         // Require at least 2 seconds for temporary admins to avoid race conditions
-        if (expires_at > 0 && expires_in_secs < 2) abort EEXPIRATION_PAST;
+        if (expires_at > 0 && expires_in_secs < 2) abort errors::expiration_past();
 
         simple_map::add(&mut admin_list.admins, new_admin, Admin {
             role,
@@ -100,17 +95,24 @@ module dao_addr::admin {
     // Remove admin
     public entry fun remove_admin(
         admin_account: &signer,
+        dao_addr: address,
         admin_to_remove: address
     ) acquires AdminList {
-        let dao_addr = signer::address_of(admin_account);
-        assert!(is_admin(dao_addr, signer::address_of(admin_account)), ENOT_ADMIN);
+        let admin_addr = signer::address_of(admin_account);
+        errors::require_admin(is_admin(dao_addr, admin_addr));
         
         let admin_list = borrow_global_mut<AdminList>(dao_addr);
-        assert!(simple_map::contains_key(&admin_list.admins, &admin_to_remove), EADMIN_NOT_FOUND);
+        errors::require_exists(simple_map::contains_key(&admin_list.admins, &admin_to_remove), errors::admin_not_found());
         
         let admin = simple_map::borrow(&admin_list.admins, &admin_to_remove);
         let role = admin.role;
         let expires_at = admin.expires_at;
+        
+        // Prevent removing super admins if it would violate minimum constraint
+        if (role == ROLE_SUPER_ADMIN) {
+            let super_admin_count = count_super_admins(admin_list);
+            assert!(super_admin_count > admin_list.min_super_admins, errors::min_members_constraint());
+        };
         
         simple_map::remove(&mut admin_list.admins, &admin_to_remove);
         emit_admin_event(dao_addr, admin_to_remove, b"removed", role, expires_at);
@@ -126,33 +128,50 @@ module dao_addr::admin {
 
     #[view]
     public fun get_admin_role(dao_addr: address, addr: address): u8 acquires AdminList {
-        assert!(exists<AdminList>(dao_addr), EADMIN_NOT_FOUND);
+        errors::require_exists(exists<AdminList>(dao_addr), errors::admin_not_found());
         let admin_list = borrow_global<AdminList>(dao_addr);
-        assert!(simple_map::contains_key(&admin_list.admins, &addr), EADMIN_NOT_FOUND);
+        errors::require_exists(simple_map::contains_key(&admin_list.admins, &addr), errors::admin_not_found());
         simple_map::borrow(&admin_list.admins, &addr).role
     }
 
     #[view]
     public fun get_admins(dao_addr: address): vector<address> acquires AdminList {
         let admin_list = borrow_global<AdminList>(dao_addr);
-        let admins = vector::empty();
-        let keys = simple_map::keys(&admin_list.admins);
-        let i = 0;
-        let len = vector::length(&keys);
-        while (i < len) {
-            vector::push_back(&mut admins, *vector::borrow(&keys, i));
-            i = i + 1;
-        };
-        admins
+        // Direct access to keys is more efficient than manual iteration
+        simple_map::keys(&admin_list.admins)
+    }
+
+    // New efficient helper functions
+    #[view]
+    public fun get_admin_count(dao_addr: address): u64 acquires AdminList {
+        let admin_list = borrow_global<AdminList>(dao_addr);
+        simple_map::length(&admin_list.admins)
     }
 
     #[view]
-    public fun not_admin_error_code(): u64 { ENOT_ADMIN }
+    public fun not_admin_error_code(): u64 { errors::not_admin() }
 
     // Helper functions
     fun is_expired(admin_list: &AdminList, addr: address): bool {
         let admin = simple_map::borrow(&admin_list.admins, &addr);
         admin.expires_at > 0 && timestamp::now_seconds() >= admin.expires_at
+    }
+
+    fun count_super_admins(admin_list: &AdminList): u64 {
+        let i = 0;
+        let count = 0;
+        let keys = simple_map::keys(&admin_list.admins);
+        let len = vector::length(&keys);
+        
+        while (i < len) {
+            let addr = vector::borrow(&keys, i);
+            let admin = simple_map::borrow(&admin_list.admins, addr);
+            if (admin.role == ROLE_SUPER_ADMIN && !is_expired(admin_list, *addr)) {
+                count = count + 1;
+            };
+            i = i + 1;
+        };
+        count
     }
 
     fun emit_admin_event(

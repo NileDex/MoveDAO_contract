@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(aptos move compile:*)",
+      "Bash(aptos move test:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "mcp__ide__getDiagnostics"
+    ],
+    "deny": []
+  }
+}

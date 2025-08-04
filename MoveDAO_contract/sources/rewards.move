@@ -5,13 +5,8 @@ module dao_addr::rewards {
     use std::event;
     use aptos_framework::timestamp;
     use dao_addr::admin;
+    use dao_addr::errors;
 
-    const ENOT_ADMIN: u64 = 1;
-    const EINVALID_REWARD_TYPE: u64 = 2;
-    const EINSUFFICIENT_TREASURY: u64 = 3;
-    const EREWARD_ALREADY_CLAIMED: u64 = 4;
-    const EREWARD_NOT_FOUND: u64 = 5;
-    const EINVALID_AMOUNT: u64 = 6;
 
     // Reward types
     const REWARD_VOTING: u8 = 1;
@@ -78,8 +73,8 @@ module dao_addr::rewards {
         staking_distribution_interval: u64
     ) {
         let addr = signer::address_of(account);
-        assert!(!exists<RewardConfig>(addr), 1);
-        assert!(!exists<RewardTracker>(addr), 1);
+        assert!(!exists<RewardConfig>(addr), errors::already_exists());
+        assert!(!exists<RewardTracker>(addr), errors::already_exists());
 
         let config = RewardConfig {
             voting_reward_per_vote,
@@ -100,6 +95,16 @@ module dao_addr::rewards {
 
         move_to(account, config);
         move_to(account, tracker);
+    }
+
+    /// Check if rewards system is enabled for the DAO
+    #[view]
+    public fun is_rewards_enabled(dao_addr: address): bool acquires RewardConfig {
+        if (!exists<RewardConfig>(dao_addr)) {
+            return false
+        };
+        let config = borrow_global<RewardConfig>(dao_addr);
+        config.enabled
     }
 
     public fun distribute_voting_reward(
@@ -153,8 +158,8 @@ module dao_addr::rewards {
         stakers: vector<address>,
         staked_amounts: vector<u64>
     ) acquires RewardConfig, RewardTracker {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), ENOT_ADMIN);
-        assert!(vector::length(&stakers) == vector::length(&staked_amounts), EINVALID_AMOUNT);
+        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
+        assert!(vector::length(&stakers) == vector::length(&staked_amounts), errors::invalid_amount());
 
         let config = borrow_global_mut<RewardConfig>(dao_addr);
         if (!config.enabled) return;
@@ -175,10 +180,18 @@ module dao_addr::rewards {
             if (staked_amount > 0) {
                 // Calculate annual yield: (staked_amount * yield_rate * time_elapsed) / (365 * 24 * 3600 * 10000)
                 let annual_seconds = 365 * 24 * 3600;
-                let reward_amount = (staked_amount * config.staking_yield_rate * time_elapsed) / (annual_seconds * 10000);
+                let denominator = annual_seconds * 10000;
+                
+                // Overflow protection for reward calculation
+                assert!(staked_amount <= (18446744073709551615u64 / config.staking_yield_rate), errors::invalid_amount());
+                let numerator_part1 = staked_amount * config.staking_yield_rate;
+                assert!(numerator_part1 <= (18446744073709551615u64 / time_elapsed), errors::invalid_amount());
+                let reward_amount = (numerator_part1 * time_elapsed) / denominator;
                 
                 if (reward_amount > 0) {
                     create_pending_reward(dao_addr, staker, reward_amount, REWARD_STAKING, 0);
+                    // Add overflow protection for total_distributed
+                    assert!(total_distributed <= (18446744073709551615u64 - reward_amount), errors::invalid_amount());
                     total_distributed = total_distributed + reward_amount;
                 };
             };
@@ -194,6 +207,30 @@ module dao_addr::rewards {
         });
     }
 
+    public entry fun claim_rewards(
+        account: &signer,
+        dao_addr: address
+    ) acquires RewardTracker, RewardConfig {
+        let user_addr = signer::address_of(account);
+        
+        // Check if user has any claimable rewards before proceeding
+        let total_claimable = get_total_claimable(dao_addr, user_addr);
+        assert!(total_claimable > 0, errors::nothing_to_claim());
+        
+        // Process the claim and get the actual amount claimed
+        let claimed_amount = claim_rewards_internal(dao_addr, user_addr);
+        
+        // Only emit event if there were actually rewards to claim
+        if (claimed_amount > 0) {
+            event::emit(RewardClaimed {
+                recipient: user_addr,
+                amount: claimed_amount,
+                reward_type: 0, // General claim event
+                claimed_at: timestamp::now_seconds()
+            });
+        };
+    }
+
     public fun claim_rewards_internal(
         dao_addr: address,
         user_addr: address
@@ -205,23 +242,16 @@ module dao_addr::rewards {
         let rewards_len = vector::length(&tracker.pending_rewards);
         let i = 0;
 
-        // Calculate total claimable amount
-        while (i < rewards_len) {
-            let reward = vector::borrow(&tracker.pending_rewards, i);
-            if (reward.recipient == user_addr && !reward.claimed) {
-                total_claimable = total_claimable + reward.amount;
-            };
-            i = i + 1;
-        };
-
-        if (total_claimable == 0) return 0;
-
-        // Mark rewards as claimed
-        i = 0;
+        // Single atomic pass: identify and immediately claim rewards to prevent race conditions
         while (i < rewards_len) {
             let reward = vector::borrow_mut(&mut tracker.pending_rewards, i);
             if (reward.recipient == user_addr && !reward.claimed) {
+                // Add overflow protection
+                assert!(total_claimable <= (18446744073709551615u64 - reward.amount), errors::invalid_amount());
+                
+                // Atomically mark as claimed and add to total (prevents race conditions)
                 reward.claimed = true;
+                total_claimable = total_claimable + reward.amount;
                 
                 event::emit(RewardClaimed {
                     recipient: user_addr,
@@ -233,14 +263,17 @@ module dao_addr::rewards {
             i = i + 1;
         };
 
-        // Update claimed totals
+        // Update claimed totals with overflow protection
         if (simple_map::contains_key(&tracker.claimed_rewards, &user_addr)) {
             let current_total = simple_map::borrow_mut(&mut tracker.claimed_rewards, &user_addr);
+            assert!(*current_total <= (18446744073709551615u64 - total_claimable), errors::invalid_amount());
             *current_total = *current_total + total_claimable;
         } else {
             simple_map::add(&mut tracker.claimed_rewards, user_addr, total_claimable);
         };
 
+        // Update global total with overflow protection
+        assert!(config.total_rewards_distributed <= (18446744073709551615u64 - total_claimable), errors::invalid_amount());
         config.total_rewards_distributed = config.total_rewards_distributed + total_claimable;
         total_claimable
     }
@@ -253,7 +286,7 @@ module dao_addr::rewards {
         successful_proposal_reward: u64,
         staking_yield_rate: u64
     ) acquires RewardConfig {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), ENOT_ADMIN);
+        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
         
         let config = borrow_global_mut<RewardConfig>(dao_addr);
         config.voting_reward_per_vote = voting_reward_per_vote;
@@ -267,7 +300,7 @@ module dao_addr::rewards {
         dao_addr: address,
         enabled: bool
     ) acquires RewardConfig {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), ENOT_ADMIN);
+        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
         
         let config = borrow_global_mut<RewardConfig>(dao_addr);
         config.enabled = enabled;

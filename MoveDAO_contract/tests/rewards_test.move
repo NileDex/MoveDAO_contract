@@ -5,7 +5,7 @@ module dao_addr::rewards_test {
     use std::signer;
     use aptos_framework::account;
     use aptos_framework::coin;
-    use aptos_framework::aptos_coin::AptosCoin;
+    use aptos_framework::aptos_coin::{Self, AptosCoin};
     use aptos_framework::timestamp;
     use dao_addr::dao_core;
     use dao_addr::rewards;
@@ -88,8 +88,8 @@ module dao_addr::rewards_test {
         proposal::start_voting(admin, dao_addr, 0);
 
         // Cast votes (this should trigger voting rewards)
-        proposal::cast_vote(voter1, dao_addr, 0, proposal::vote_yes());
-        proposal::cast_vote(voter2, dao_addr, 0, proposal::vote_no());
+        proposal::cast_vote(voter1, dao_addr, 0, 1); // vote_yes
+        proposal::cast_vote(voter2, dao_addr, 0, 2); // vote_no
 
         // Check pending rewards
         let voter1_rewards = rewards::get_pending_rewards(dao_addr, TEST_VOTER1);
@@ -203,7 +203,7 @@ module dao_addr::rewards_test {
         proposal::start_voting(admin, dao_addr, 0);
 
         // Cast a yes vote to make it pass
-        proposal::cast_vote(voter1, dao_addr, 0, proposal::vote_yes());
+        proposal::cast_vote(voter1, dao_addr, 0, 1); // vote_yes
 
         // Fast forward past voting period
         timestamp::fast_forward_seconds(3601);
@@ -297,7 +297,7 @@ module dao_addr::rewards_test {
     }
 
     #[test(aptos_framework = @0x1, admin = @0x123, voter1 = @0x456)]
-    #[expected_failure(abort_code = 3)] // EINSUFFICIENT_TREASURY
+    #[expected_failure(abort_code = 400, location = dao_addr::dao_core)] // errors::insufficient_treasury() = 400
     fun test_insufficient_treasury_for_rewards(
         aptos_framework: &signer,
         admin: &signer,
@@ -335,11 +335,54 @@ module dao_addr::rewards_test {
 
         // Start voting and cast vote
         proposal::start_voting(admin, dao_addr, 0);
-        proposal::cast_vote(voter1, dao_addr, 0, proposal::vote_yes());
+        proposal::cast_vote(voter1, dao_addr, 0, 1); // vote_yes
 
         // Try to claim rewards - should fail due to insufficient treasury
         dao_core::claim_rewards(voter1, dao_addr);
 
         test_utils::destroy_caps(aptos_framework);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = 1, location = dao_addr::dao_core)] // errors::nothing_to_claim() = 1
+    fun test_cannot_claim_when_nothing_to_claim_expected_failure() {
+        let aptos_framework = account::create_signer_for_test(@0x1);
+        let dao_admin = account::create_signer_for_test(@dao_addr);
+        let user = account::create_signer_for_test(@0xA11CE);
+
+        // Setup
+        timestamp::set_time_has_started_for_testing(&aptos_framework);
+        account::create_account_for_test(@0x1);
+        account::create_account_for_test(@dao_addr);
+        account::create_account_for_test(@0xA11CE);
+
+        test_utils::setup_aptos(&aptos_framework);
+        test_utils::setup_test_account(&dao_admin);
+        test_utils::setup_test_account(&user);
+        coin::register<AptosCoin>(&user);
+        test_utils::mint_aptos(&user, 1000);
+
+        // Create DAO
+        let initial_council = vector::empty<address>();
+        vector::push_back(&mut initial_council, signer::address_of(&dao_admin));
+        dao_core::create_dao(
+            &dao_admin,
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Description"),
+            b"logo",
+            b"bg",
+            initial_council,
+            30,
+            3600,
+            86400
+        );
+
+        // Make user stake first, then join as member
+        staking::stake(&user, @dao_addr, 1000);
+        membership::join(&user, @dao_addr);
+
+        // Try to claim rewards when user has no rewards
+        // This should fail with nothing_to_claim error
+        dao_core::claim_rewards(&user, @dao_addr);
     }
 }

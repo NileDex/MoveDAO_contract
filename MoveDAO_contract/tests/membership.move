@@ -68,7 +68,7 @@ module dao_addr::membership_tests {
     }
 
     #[test(aptos_framework = @0x1, admin = @dao_addr)]
-    #[expected_failure(abort_code = 3)] // EALREADY_MEMBER = 3
+    #[expected_failure(abort_code = 524440, location = dao_addr::errors)] // errors::already_exists_error(already_member()) = 524440
     fun test_cannot_join_twice(aptos_framework: &signer, admin: &signer) {
         account::create_account_for_test(@0x1);
         account::create_account_for_test(@dao_addr);
@@ -104,7 +104,7 @@ module dao_addr::membership_tests {
     }
 
     #[test(aptos_framework = @0x1, admin = @dao_addr)]
-    #[expected_failure(abort_code = 4)] // EMIN_STAKE_REQUIRED = 4
+    #[expected_failure(abort_code = 153, location = dao_addr::membership)] // errors::min_stake_required() = 153
     fun test_cannot_join_without_min_stake(aptos_framework: &signer, admin: &signer) {
         account::create_account_for_test(@0x1);
         account::create_account_for_test(@dao_addr);
@@ -237,7 +237,7 @@ module dao_addr::membership_tests {
     }
 
     #[test(aptos_framework = @0x1, admin = @dao_addr)]
-    #[expected_failure(abort_code = 2)] // ENOT_MEMBER = 2
+    #[expected_failure(abort_code = 327831, location = dao_addr::errors)] // errors::permission_denied(not_member()) = 327831
     fun test_cannot_leave_if_not_member(aptos_framework: &signer, admin: &signer) {
         account::create_account_for_test(@0x1);
         account::create_account_for_test(@dao_addr);

@@ -159,15 +159,15 @@ module dao_addr::launchpad_test {
 
         let now = timestamp::now_seconds();
         
-        // Update timeline
+        // Update timeline with minimum 1 day periods
         launchpad::update_timeline(
             admin,
             dao_addr,
-            now + 100,    // whitelist starts in 100 seconds
-            now + 1000,   // presale starts in 1000 seconds
-            now + 2000,   // public sale starts in 2000 seconds
-            now + 3000,   // sale ends in 3000 seconds
-            now + 4000    // vesting starts in 4000 seconds
+            now + 100,     // whitelist starts in 100 seconds
+            now + 1000,    // presale starts in 1000 seconds
+            now + 87400,   // public sale starts after 1 day + margin
+            now + 174800,  // sale ends after another 1 day + margin
+            now + 200000   // vesting starts later
         );
 
         // Check timeline
@@ -176,9 +176,9 @@ module dao_addr::launchpad_test {
         
         assert!(whitelist_start == now + 100, EASSERTION_FAILED);
         assert!(presale_start == now + 1000, EASSERTION_FAILED + 1);
-        assert!(public_start == now + 2000, EASSERTION_FAILED + 2);
-        assert!(sale_end == now + 3000, EASSERTION_FAILED + 3);
-        assert!(vesting_start == now + 4000, EASSERTION_FAILED + 4);
+        assert!(public_start == now + 87400, EASSERTION_FAILED + 2);
+        assert!(sale_end == now + 174800, EASSERTION_FAILED + 3);
+        assert!(vesting_start == now + 200000, EASSERTION_FAILED + 4);
 
         test_utils::destroy_caps(aptos_framework);
     }
@@ -224,9 +224,9 @@ module dao_addr::launchpad_test {
         
         dao_core::manage_launchpad_whitelist(admin, dao_addr, participants, tiers, allocations);
 
-        // Setup timeline for immediate presale
+        // Setup timeline for presale with minimum durations
         let now = timestamp::now_seconds();
-        launchpad::update_timeline(admin, dao_addr, now + 100, now + 150, now + 1000, now + 2000, now + 3000);
+        launchpad::update_timeline(admin, dao_addr, now + 100, now + 150, now + 87000, now + 174000, now + 200000);
 
         // Advance time to reach whitelist start
         timestamp::fast_forward_seconds(150);
@@ -235,7 +235,7 @@ module dao_addr::launchpad_test {
         launchpad::advance_phase(admin, dao_addr);
         
         // Advance time to reach presale start
-        timestamp::fast_forward_seconds(1000);
+        timestamp::fast_forward_seconds(87000);
         
         // Advance to presale phase
         launchpad::advance_phase(admin, dao_addr);
@@ -255,7 +255,7 @@ module dao_addr::launchpad_test {
         assert!(purchased2 == 1500, EASSERTION_FAILED + 2);
 
         // Check sale stats
-        let (tokens_sold, funds_raised, total_available, percentage_sold) = 
+        let (tokens_sold, funds_raised, _total_available, _percentage_sold) = 
             launchpad::get_sale_stats(dao_addr);
         
         assert!(tokens_sold == 3500, EASSERTION_FAILED + 3);
@@ -286,7 +286,7 @@ module dao_addr::launchpad_test {
 
         // Setup timeline for public sale
         let now = timestamp::now_seconds();
-        launchpad::update_timeline(admin, dao_addr, now + 200, now + 300, now + 350, now + 1500, now + 2000);
+        launchpad::update_timeline(admin, dao_addr, now + 200, now + 300, now + 87000, now + 174000, now + 200000);
 
         // Advance time to reach whitelist start
         timestamp::fast_forward_seconds(300);
@@ -294,14 +294,14 @@ module dao_addr::launchpad_test {
         // Advance to whitelist phase first
         launchpad::advance_phase(admin, dao_addr);
         
-        // Advance time to reach presale start
+        // Advance time to reach presale start (from now+200 to now+300)
         timestamp::fast_forward_seconds(100);
         
         // Advance to presale phase
         launchpad::advance_phase(admin, dao_addr);
         
-        // Advance time to reach public sale start
-        timestamp::fast_forward_seconds(700);
+        // Advance time to reach public sale start (from now+300 to now+87000)
+        timestamp::fast_forward_seconds(86700);
         
         // Advance to public sale phase
         launchpad::advance_phase(admin, dao_addr);
@@ -405,7 +405,7 @@ module dao_addr::launchpad_test {
     }
 
     #[test(aptos_framework = @0x1, admin = @0x123, investor1 = @0x456)]
-    #[expected_failure(abort_code = 5)] // ENOT_WHITELISTED
+    #[expected_failure(abort_code = 503, location = dao_addr::launchpad)] // errors::not_whitelisted() = 503
     fun test_presale_non_whitelisted_fails(
         aptos_framework: &signer, 
         admin: &signer, 
@@ -429,18 +429,12 @@ module dao_addr::launchpad_test {
             1000000, 100, 30, 20, 6, 24, false
         );
 
-        // Setup timeline for presale
+        // Setup timeline for presale - ensure we stay in presale phase
         let now = timestamp::now_seconds();
-        launchpad::update_timeline(admin, dao_addr, now + 100, now + 150, now + 1000, now + 2000, now + 3000);
+        launchpad::update_timeline(admin, dao_addr, now + 100, now + 200, now + 87000, now + 174000, now + 200000);
 
-        // Advance time to reach whitelist start
-        timestamp::fast_forward_seconds(150);
-        
-        // Advance to whitelist phase first
-        launchpad::advance_phase(admin, dao_addr);
-        
-        // Advance time to reach presale start
-        timestamp::fast_forward_seconds(1000);
+        // Advance time to reach presale start but not public sale
+        timestamp::fast_forward_seconds(250);
         
         // Advance to presale phase
         launchpad::advance_phase(admin, dao_addr);
@@ -452,7 +446,7 @@ module dao_addr::launchpad_test {
     }
 
     #[test(aptos_framework = @0x1, admin = @0x123, investor1 = @0x456)]
-    #[expected_failure(abort_code = 6)] // EEXCEEDS_ALLOCATION
+    #[expected_failure(abort_code = 504, location = dao_addr::launchpad)] // errors::exceeds_allocation() = 504
     fun test_exceeds_allocation_fails(
         aptos_framework: &signer, 
         admin: &signer, 
@@ -483,18 +477,12 @@ module dao_addr::launchpad_test {
         
         dao_core::manage_launchpad_whitelist(admin, dao_addr, participants, tiers, allocations);
 
-        // Setup timeline for presale
+        // Setup timeline for presale - ensure we stay in presale phase
         let now = timestamp::now_seconds();
-        launchpad::update_timeline(admin, dao_addr, now + 100, now + 150, now + 1000, now + 2000, now + 3000);
+        launchpad::update_timeline(admin, dao_addr, now + 100, now + 200, now + 87000, now + 174000, now + 200000);
 
-        // Advance time to reach whitelist start
-        timestamp::fast_forward_seconds(150);
-        
-        // Advance to whitelist phase first
-        launchpad::advance_phase(admin, dao_addr);
-        
-        // Advance time to reach presale start
-        timestamp::fast_forward_seconds(1000);
+        // Advance time to reach presale start but not public sale
+        timestamp::fast_forward_seconds(250);
         
         // Advance to presale phase
         launchpad::advance_phase(admin, dao_addr);
