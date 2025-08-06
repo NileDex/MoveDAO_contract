@@ -1,3 +1,4 @@
+// Council system - manages trusted DAO members who can have special governance roles and permissions
 module dao_addr::council {
     use std::vector;
     use std::signer;

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(aptos move compile:*)",
+      "Bash(aptos move test:*)",
+      "Bash(aptos init:*)"
+    ],
+    "deny": []
+  }
+}

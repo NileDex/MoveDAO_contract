@@ -1,3 +1,4 @@
+// Error definitions - centralized error codes and helper functions for all DAO modules
 module dao_addr::errors {
     use std::error;
 
@@ -108,6 +109,15 @@ module dao_addr::errors {
     // DAO CORE MODULE ERROR CODES (600-649)
     // =============================================================================
     const EDAO_ALREADY_EXISTS: u64 = 600;
+    const ENOT_COUNCIL_MEMBER: u64 = 601;
+    const EPROPOSAL_NOT_FOUND: u64 = 602;
+    const EPROPOSAL_ALREADY_EXECUTED: u64 = 603;
+    const EVOTING_PERIOD_ENDED: u64 = 604;
+    const EVOTING_PERIOD_ACTIVE: u64 = 605;
+    const EPROPOSAL_NOT_EXECUTED: u64 = 606;
+    const EPROPOSAL_NOT_APPROVED: u64 = 607;
+    const EUNAUTHORIZED: u64 = 608;
+    const EREGISTRY_NOT_INITIALIZED: u64 = 609;
 
     // =============================================================================
     // ERROR HELPER FUNCTIONS
@@ -184,6 +194,15 @@ module dao_addr::errors {
 
     // DAO core module errors
     public fun dao_already_exists(): u64 { EDAO_ALREADY_EXISTS }
+    public fun not_council_member(): u64 { ENOT_COUNCIL_MEMBER }
+    public fun proposal_not_found(): u64 { EPROPOSAL_NOT_FOUND }
+    public fun proposal_already_executed(): u64 { EPROPOSAL_ALREADY_EXECUTED }
+    public fun voting_period_ended(): u64 { EVOTING_PERIOD_ENDED }
+    public fun voting_period_active(): u64 { EVOTING_PERIOD_ACTIVE }
+    public fun proposal_not_executed(): u64 { EPROPOSAL_NOT_EXECUTED }
+    public fun proposal_not_approved(): u64 { EPROPOSAL_NOT_APPROVED }
+    public fun unauthorized(): u64 { EUNAUTHORIZED }
+    public fun registry_not_initialized(): u64 { EREGISTRY_NOT_INITIALIZED }
 
     // =============================================================================
     // ADVANCED ERROR HELPER FUNCTIONS

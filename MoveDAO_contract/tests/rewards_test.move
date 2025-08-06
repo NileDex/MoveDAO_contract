@@ -5,7 +5,7 @@ module dao_addr::rewards_test {
     use std::signer;
     use aptos_framework::account;
     use aptos_framework::coin;
-    use aptos_framework::aptos_coin::{Self, AptosCoin};
+    use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::timestamp;
     use dao_addr::dao_core;
     use dao_addr::rewards;

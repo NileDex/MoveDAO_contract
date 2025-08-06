@@ -1,3 +1,4 @@
+// Token launchpad - allows DAOs to create and sell their own tokens with vesting and whitelist features
 module dao_addr::launchpad {
     use std::signer;
     use std::vector;

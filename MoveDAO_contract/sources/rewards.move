@@ -1,3 +1,4 @@
+// Rewards system - distributes incentives to members for voting, creating proposals, and active participation
 module dao_addr::rewards {
     use std::signer;
     use std::vector;
@@ -97,7 +98,6 @@ module dao_addr::rewards {
         move_to(account, tracker);
     }
 
-    /// Check if rewards system is enabled for the DAO
     #[view]
     public fun is_rewards_enabled(dao_addr: address): bool acquires RewardConfig {
         if (!exists<RewardConfig>(dao_addr)) {

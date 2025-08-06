@@ -1,3 +1,4 @@
+// Proposal system - handles creating, voting on, and executing community governance proposals
 module dao_addr::proposal {
     use std::signer;
     use std::vector;

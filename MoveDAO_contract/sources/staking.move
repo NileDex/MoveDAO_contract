@@ -1,6 +1,7 @@
+// Staking system - handles APT token staking/unstaking for membership and voting power calculation
 module dao_addr::staking {
     use std::signer;
-    use std::string::{Self, String};
+    use std::string::String;
     use std::vector;
     use aptos_framework::object;
     use aptos_framework::coin;
@@ -218,6 +219,8 @@ module dao_addr::staking {
         admin::is_admin(dao_addr, addr)
     }
 
+    #[test_only]
+    use std::string;
     #[test_only]
     use aptos_framework::account;
     #[test_only]

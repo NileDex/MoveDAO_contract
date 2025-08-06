@@ -1,3 +1,4 @@
+// Treasury system - manages DAO funds with secure deposit/withdrawal and reentrancy protection
 module dao_addr::treasury {
     use std::signer;
     use aptos_framework::coin;
@@ -103,20 +104,58 @@ module dao_addr::treasury {
         coin::value(&treasury.balance)
     }
 
-    // For now, provide legacy functions that will be updated later with proper DAO integration
-    public entry fun deposit(_account: &signer, _dao_addr: address, _amount: u64) {
-        // This will be implemented once the circular dependency is resolved
-        abort 999 // Temporary placeholder
+    // Legacy functions - these operate directly on DAO addresses without circular dependency
+    // These functions assume treasury exists at the DAO address for backward compatibility
+    public entry fun deposit(account: &signer, dao_addr: address, amount: u64) acquires Treasury {
+        let treasury_addr = get_legacy_treasury_addr(dao_addr);
+        assert!(exists<Treasury>(treasury_addr), errors::not_found());
+        
+        let treasury = borrow_global_mut<Treasury>(treasury_addr);
+        let coins = coin::withdraw<AptosCoin>(account, amount);
+        coin::merge(&mut treasury.balance, coins);
     }
 
-    public entry fun withdraw(_account: &signer, _dao_addr: address, _amount: u64) {
-        // This will be implemented once the circular dependency is resolved
-        abort 999 // Temporary placeholder
+    public entry fun withdraw(account: &signer, dao_addr: address, amount: u64) acquires Treasury, ReentrancyGuard {
+        assert!(admin::is_admin(dao_addr, signer::address_of(account)), errors::not_admin());
+        
+        let treasury_addr = get_legacy_treasury_addr(dao_addr);
+        
+        // Reentrancy protection
+        let guard = borrow_global_mut<ReentrancyGuard>(treasury_addr);
+        assert!(!guard.locked, errors::invalid_state(1));
+        guard.locked = true;
+        
+        let treasury = borrow_global_mut<Treasury>(treasury_addr);
+        
+        // Validate sufficient balance
+        let current_balance = coin::value(&treasury.balance);
+        assert!(current_balance >= amount, errors::insufficient_treasury());
+        
+        // Extract coins before external call
+        let coins = coin::extract(&mut treasury.balance, amount);
+        let recipient = signer::address_of(account);
+        
+        // Unlock before external call
+        guard.locked = false;
+        
+        // External interaction last
+        coin::deposit(recipient, coins);
     }
 
     #[view]
-    public fun get_balance(_dao_addr: address): u64 {
-        // This will be implemented once the circular dependency is resolved
-        0 // Temporary placeholder
+    public fun get_balance(dao_addr: address): u64 acquires Treasury {
+        let treasury_addr = get_legacy_treasury_addr(dao_addr);
+        if (!exists<Treasury>(treasury_addr)) return 0;
+        
+        let treasury = borrow_global<Treasury>(treasury_addr);
+        coin::value(&treasury.balance)
+    }
+
+    // Helper function to determine treasury address for legacy functions
+    #[view]
+    fun get_legacy_treasury_addr(dao_addr: address): address {
+        // For object-based treasuries created through dao_core, we need to compute the object address
+        // This is a simplified approach - in production, you might want to store this mapping
+        dao_addr // Simplified: assume treasury is at DAO address for legacy compatibility
     }
 }

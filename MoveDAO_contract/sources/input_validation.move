@@ -1,3 +1,4 @@
+// Input validation - validates user inputs like strings, addresses, and parameters to prevent invalid data
 module dao_addr::input_validation {
     use std::string::{Self, String};
     use std::vector;

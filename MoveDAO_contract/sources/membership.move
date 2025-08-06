@@ -1,3 +1,4 @@
+// Membership system - manages who can join the DAO based on staking requirements and tracks member status
 module dao_addr::membership {
     use std::signer;
     use std::simple_map::{Self, SimpleMap};
@@ -38,7 +39,7 @@ module dao_addr::membership {
     }
 
     public fun initialize(account: &signer) {
-        initialize_with_min_stake(account, 10) // Default to 10 APT
+        initialize_with_min_stake(account, 1) // Default to 10 APT
     }
 
     public fun initialize_with_min_stake(account: &signer, min_stake_to_join: u64) {

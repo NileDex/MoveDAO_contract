@@ -1,3 +1,4 @@
+// Safe math - prevents integer overflow/underflow attacks with secure arithmetic operations
 module dao_addr::safe_math {
     use dao_addr::errors;
 

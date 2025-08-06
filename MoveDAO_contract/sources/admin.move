@@ -1,3 +1,4 @@
+// Admin system - manages DAO administrators with different roles and permissions (Super, Standard, Temporary)
 module dao_addr::admin {
     use std::signer;
     use std::vector;

@@ -1,3 +1,4 @@
+// Main DAO factory - creates and manages DAOs with their core components (treasury, council, membership)
 module dao_addr::dao_core {
     use std::signer;
     use std::string;
@@ -48,6 +49,56 @@ module dao_addr::dao_core {
         total_supply: u64,
         price_per_token: u64,
         created_at: u64
+    }
+
+    #[event]
+    struct DAOCreationProposal has drop, store {
+        proposal_id: u64,
+        proposing_council: address,
+        proposer: address,
+        target_dao_address: address,
+        name: string::String,
+        description: string::String,
+        created_at: u64
+    }
+
+    #[event]
+    struct CouncilDAOCreated has drop, store {
+        dao_address: address,
+        creating_council: address,
+        proposal_id: u64,
+        name: string::String,
+        description: string::String,
+        created_at: u64,
+        yes_votes: u64,
+        total_council_size: u64
+    }
+
+    struct DAOCreationProposalData has store {
+        id: u64,
+        proposer: address,
+        target_dao_address: address,
+        name: string::String,
+        description: string::String,
+        logo: vector<u8>,
+        background: vector<u8>,
+        initial_council: vector<address>,
+        min_stake_to_join: u64,
+        min_voting_period: u64,
+        max_voting_period: u64,
+        created_at: u64,
+        voting_deadline: u64,
+        yes_votes: u64,
+        no_votes: u64,
+        voted_members: vector<address>,
+        executed: bool,
+        approved: bool
+    }
+
+    struct CouncilDAOCreationRegistry has key {
+        proposals: vector<DAOCreationProposalData>,
+        next_proposal_id: u64,
+        voting_duration: u64  // Duration in seconds for voting on DAO creation proposals
     }
 
     public entry fun create_dao(
@@ -116,6 +167,318 @@ module dao_addr::dao_core {
             created_at,
             initial_council_size: vector::length(&initial_council)
         });
+    }
+
+    // Initialize council DAO creation registry for existing councils
+    public entry fun init_council_dao_creation(council_account: &signer, voting_duration: u64) {
+        let addr = signer::address_of(council_account);
+        assert!(!exists<CouncilDAOCreationRegistry>(addr), error::already_exists(0));
+        assert!(exists<DAOInfo>(addr), errors::not_found()); // Must be an existing DAO/council
+        
+        // Validate voting duration (minimum 1 hour, maximum 7 days)
+        assert!(voting_duration >= 3600, errors::invalid_amount()); // 1 hour minimum
+        assert!(voting_duration <= 604800, errors::invalid_amount()); // 7 days maximum
+        
+        let registry = CouncilDAOCreationRegistry {
+            proposals: vector::empty(),
+            next_proposal_id: 0,
+            voting_duration
+        };
+        
+        move_to(council_account, registry);
+    }
+
+    // Council members can propose new DAO creation
+    public entry fun propose_dao_creation(
+        council_member: &signer,
+        council_dao_addr: address,
+        target_dao_address: address,
+        name: string::String,
+        description: string::String,
+        logo: vector<u8>,
+        background: vector<u8>,
+        initial_council: vector<address>,
+        min_stake_to_join: u64,
+        min_voting_period: u64,
+        max_voting_period: u64
+    ) acquires DAOInfo, CouncilDAOCreationRegistry {
+        let proposer = signer::address_of(council_member);
+        
+        // Verify proposer is a council member of the proposing DAO
+        assert!(exists<DAOInfo>(council_dao_addr), errors::not_found());
+        let dao_info = borrow_global<DAOInfo>(council_dao_addr);
+        assert!(council::is_council_member_in_object(dao_info.council, proposer), errors::not_council_member());
+        
+        // Verify target DAO address doesn't already exist
+        assert!(!exists<DAOInfo>(target_dao_address), error::already_exists(0));
+        
+        // Comprehensive input validation
+        input_validation::validate_dao_name(&name);
+        input_validation::validate_dao_description(&description);
+        input_validation::validate_logo(&logo);
+        input_validation::validate_background(&background);
+        input_validation::validate_address_list(&initial_council, input_validation::get_max_council_size());
+        input_validation::validate_council_size(vector::length(&initial_council));
+        input_validation::validate_voting_period_bounds(min_voting_period, max_voting_period);
+        
+        assert!(min_stake_to_join > 0, errors::invalid_amount());
+        assert!(min_stake_to_join <= 10000, errors::invalid_amount());
+        
+        // Registry must be initialized first
+        assert!(exists<CouncilDAOCreationRegistry>(council_dao_addr), errors::registry_not_initialized());
+        
+        let registry = borrow_global_mut<CouncilDAOCreationRegistry>(council_dao_addr);
+        let proposal_id = registry.next_proposal_id;
+        registry.next_proposal_id = proposal_id + 1;
+        
+        let created_at = timestamp::now_seconds();
+        let voting_deadline = created_at + registry.voting_duration;
+        
+        let proposal = DAOCreationProposalData {
+            id: proposal_id,
+            proposer,
+            target_dao_address,
+            name,
+            description,
+            logo,
+            background,
+            initial_council,
+            min_stake_to_join,
+            min_voting_period,
+            max_voting_period,
+            created_at,
+            voting_deadline,
+            yes_votes: 0,
+            no_votes: 0,
+            voted_members: vector::empty(),
+            executed: false,
+            approved: false
+        };
+        
+        vector::push_back(&mut registry.proposals, proposal);
+        
+        // Emit proposal event
+        event::emit(DAOCreationProposal {
+            proposal_id,
+            proposing_council: council_dao_addr,
+            proposer,
+            target_dao_address,
+            name,
+            description,
+            created_at
+        });
+    }
+
+    // Council members vote on DAO creation proposals
+    public entry fun vote_on_dao_creation(
+        council_member: &signer,
+        council_dao_addr: address,
+        proposal_id: u64,
+        approve: bool
+    ) acquires DAOInfo, CouncilDAOCreationRegistry {
+        let voter = signer::address_of(council_member);
+        
+        // Verify voter is a council member
+        assert!(exists<DAOInfo>(council_dao_addr), errors::not_found());
+        let dao_info = borrow_global<DAOInfo>(council_dao_addr);
+        assert!(council::is_council_member_in_object(dao_info.council, voter), errors::not_council_member());
+        
+        let registry = borrow_global_mut<CouncilDAOCreationRegistry>(council_dao_addr);
+        assert!(proposal_id < vector::length(&registry.proposals), errors::proposal_not_found());
+        
+        let proposal = vector::borrow_mut(&mut registry.proposals, proposal_id);
+        assert!(!proposal.executed, errors::proposal_already_executed());
+        assert!(timestamp::now_seconds() <= proposal.voting_deadline, errors::voting_period_ended());
+        
+        // Check if member has already voted
+        let i = 0;
+        let len = vector::length(&proposal.voted_members);
+        let already_voted = false;
+        while (i < len) {
+            if (*vector::borrow(&proposal.voted_members, i) == voter) {
+                already_voted = true;
+                break
+            };
+            i = i + 1;
+        };
+        assert!(!already_voted, errors::already_voted());
+        
+        // Record vote
+        vector::push_back(&mut proposal.voted_members, voter);
+        if (approve) {
+            proposal.yes_votes = proposal.yes_votes + 1;
+        } else {
+            proposal.no_votes = proposal.no_votes + 1;
+        };
+    }
+
+    // Execute DAO creation if proposal passes
+    public entry fun execute_dao_creation(
+        executor: &signer,
+        council_dao_addr: address,
+        proposal_id: u64
+    ) acquires DAOInfo, CouncilDAOCreationRegistry {
+        let executor_addr = signer::address_of(executor);
+        
+        // Verify executor is a council member
+        assert!(exists<DAOInfo>(council_dao_addr), errors::not_found());
+        let dao_info = borrow_global<DAOInfo>(council_dao_addr);
+        assert!(council::is_council_member_in_object(dao_info.council, executor_addr), errors::not_council_member());
+        
+        let registry = borrow_global_mut<CouncilDAOCreationRegistry>(council_dao_addr);
+        assert!(proposal_id < vector::length(&registry.proposals), errors::proposal_not_found());
+        
+        let proposal = vector::borrow_mut(&mut registry.proposals, proposal_id);
+        assert!(!proposal.executed, errors::proposal_already_executed());
+        assert!(timestamp::now_seconds() > proposal.voting_deadline, errors::voting_period_active());
+        
+        // Check if proposal passes (simple majority)
+        let total_council_size = council::get_member_count_from_object(dao_info.council);
+        let required_votes = (total_council_size / 2) + 1; // Simple majority
+        let passed = proposal.yes_votes >= required_votes;
+        
+        proposal.executed = true;
+        proposal.approved = passed;
+        
+        if (passed) {
+            // Create the target signer for the new DAO - this is a simplified approach
+            // In production, you might want a more sophisticated DAO address generation mechanism
+            assert!(!exists<DAOInfo>(proposal.target_dao_address), error::already_exists(0));
+            
+            // For now, we'll create a placeholder that needs to be properly initialized by the target address owner
+            // This is a design limitation - the target address owner must call a separate initialization function
+            // Alternative: Use object-based DAO creation for better address management
+            
+            event::emit(CouncilDAOCreated {
+                dao_address: proposal.target_dao_address,
+                creating_council: council_dao_addr,
+                proposal_id,
+                name: proposal.name,
+                description: proposal.description,
+                created_at: timestamp::now_seconds(),
+                yes_votes: proposal.yes_votes,
+                total_council_size
+            });
+        };
+    }
+
+    // Helper function for approved DAO creation by target address owner
+    public entry fun finalize_council_created_dao(
+        target_account: &signer,
+        council_dao_addr: address,
+        proposal_id: u64
+    ) acquires CouncilDAOCreationRegistry {
+        let addr = signer::address_of(target_account);
+        
+        let registry = borrow_global<CouncilDAOCreationRegistry>(council_dao_addr);
+        assert!(proposal_id < vector::length(&registry.proposals), errors::proposal_not_found());
+        
+        let proposal = vector::borrow(&registry.proposals, proposal_id);
+        assert!(proposal.target_dao_address == addr, errors::unauthorized());
+        assert!(proposal.executed, errors::proposal_not_executed());
+        assert!(proposal.approved, errors::proposal_not_approved());
+        assert!(!exists<DAOInfo>(addr), error::already_exists(0));
+        
+        // Now create the actual DAO using the approved parameters
+        let council = council::init_council(target_account, proposal.initial_council, 1, 10);
+        let treasury = treasury::init_treasury(target_account);
+        let created_at = timestamp::now_seconds();
+
+        move_to(target_account, DAOInfo {
+            name: proposal.name,
+            description: proposal.description,
+            logo: proposal.logo,
+            background: proposal.background,
+            created_at,
+            council,
+            treasury
+        });
+
+        // Initialize all required modules
+        admin::init_admin(target_account, 1);
+        membership::initialize_with_min_stake(target_account, proposal.min_stake_to_join);
+        proposal::initialize_proposals(target_account, proposal.min_voting_period, proposal.max_voting_period);
+        staking::init_staking(target_account);
+        
+        // Initialize rewards with default configuration
+        rewards::initialize_rewards(
+            target_account,
+            10,      // voting_reward_per_vote: 10 tokens per vote
+            100,     // proposal_creation_reward: 100 tokens per proposal
+            500,     // successful_proposal_reward: 500 tokens for successful proposals
+            500,     // staking_yield_rate: 5% annual (500 = 5.00%)
+            86400    // staking_distribution_interval: daily (24 hours in seconds)
+        );
+
+        // Emit DAO creation event
+        event::emit(DAOCreated {
+            dao_address: addr,
+            creator: addr,
+            name: proposal.name,
+            description: proposal.description,
+            created_at,
+            initial_council_size: vector::length(&proposal.initial_council)
+        });
+    }
+
+    // View functions for council DAO creation
+    #[view]
+    public fun get_dao_creation_proposal(
+        council_dao_addr: address,
+        proposal_id: u64
+    ): (u64, address, address, string::String, string::String, u64, u64, u64, u64, bool, bool) acquires CouncilDAOCreationRegistry {
+        assert!(exists<CouncilDAOCreationRegistry>(council_dao_addr), errors::registry_not_initialized());
+        let registry = borrow_global<CouncilDAOCreationRegistry>(council_dao_addr);
+        assert!(proposal_id < vector::length(&registry.proposals), errors::proposal_not_found());
+        
+        let proposal = vector::borrow(&registry.proposals, proposal_id);
+        (
+            proposal.id,
+            proposal.proposer,
+            proposal.target_dao_address,
+            proposal.name,
+            proposal.description,
+            proposal.created_at,
+            proposal.voting_deadline,
+            proposal.yes_votes,
+            proposal.no_votes,
+            proposal.executed,
+            proposal.approved
+        )
+    }
+
+    #[view]
+    public fun get_dao_creation_proposal_count(council_dao_addr: address): u64 acquires CouncilDAOCreationRegistry {
+        if (!exists<CouncilDAOCreationRegistry>(council_dao_addr)) return 0;
+        let registry = borrow_global<CouncilDAOCreationRegistry>(council_dao_addr);
+        vector::length(&registry.proposals)
+    }
+
+    #[view]
+    public fun has_voted_on_dao_creation(
+        council_dao_addr: address,
+        proposal_id: u64,
+        voter: address
+    ): bool acquires CouncilDAOCreationRegistry {
+        if (!exists<CouncilDAOCreationRegistry>(council_dao_addr)) return false;
+        let registry = borrow_global<CouncilDAOCreationRegistry>(council_dao_addr);
+        if (proposal_id >= vector::length(&registry.proposals)) return false;
+        
+        let proposal = vector::borrow(&registry.proposals, proposal_id);
+        let i = 0;
+        let len = vector::length(&proposal.voted_members);
+        while (i < len) {
+            if (*vector::borrow(&proposal.voted_members, i) == voter) {
+                return true
+            };
+            i = i + 1;
+        };
+        false
+    }
+
+    #[view]
+    public fun is_dao_creation_registry_initialized(council_dao_addr: address): bool {
+        exists<CouncilDAOCreationRegistry>(council_dao_addr)
     }
 
     #[view]

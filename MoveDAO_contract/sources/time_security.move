@@ -1,3 +1,4 @@
+// Time security - prevents timestamp manipulation attacks and ensures secure time-based operations
 module dao_addr::time_security {
     use std::vector;
     use aptos_framework::timestamp;
