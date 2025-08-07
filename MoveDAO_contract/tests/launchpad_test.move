@@ -26,9 +26,7 @@ module dao_addr::launchpad_test {
             b"logo",
             b"bg",
             council,
-            30, // min_quorum_percent
-            3600, // min_voting_period
-            86400 // max_voting_period
+            30 // min_stake_to_join
         );
     }
 

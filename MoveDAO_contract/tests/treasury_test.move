@@ -29,9 +29,7 @@ module dao_addr::treasury_test {
             b"logo", 
             b"bg", 
             council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         // Treasury is initialized during DAO creation, so we just check the balance
@@ -60,9 +58,7 @@ module dao_addr::treasury_test {
             b"logo", 
             b"bg", 
             council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(alice);
@@ -100,9 +96,7 @@ module dao_addr::treasury_test {
             b"logo", 
             b"bg", 
             council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(alice);
@@ -134,9 +128,7 @@ module dao_addr::treasury_test {
             b"logo", 
             b"bg", 
             council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(alice);
@@ -169,9 +161,7 @@ module dao_addr::treasury_test {
             b"logo", 
             b"bg", 
             council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(alice);
@@ -201,9 +191,7 @@ module dao_addr::treasury_test {
             b"logo", 
             b"bg", 
             council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(alice);
@@ -245,9 +233,7 @@ module dao_addr::treasury_test {
             b"logo", 
             b"bg", 
             council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(alice);
@@ -283,9 +269,7 @@ module dao_addr::treasury_test {
             b"logo", 
             b"bg", 
             council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(alice);

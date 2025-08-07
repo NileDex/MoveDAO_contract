@@ -35,9 +35,7 @@ module dao_addr::admin_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         // Get the DAO address (where admin data is stored)
@@ -77,9 +75,7 @@ module dao_addr::admin_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(alice);
@@ -128,9 +124,7 @@ module dao_addr::admin_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(alice);
@@ -162,9 +156,7 @@ module dao_addr::admin_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(alice);
@@ -195,9 +187,7 @@ module dao_addr::admin_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(alice);
@@ -236,9 +226,7 @@ module dao_addr::admin_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(alice);

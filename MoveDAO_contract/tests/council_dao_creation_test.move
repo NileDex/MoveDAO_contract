@@ -36,9 +36,7 @@ module dao_addr::council_dao_creation_test {
             vector::empty<u8>(), // logo
             vector::empty<u8>(), // background
             initial_council,
-            100, // min_stake_to_join
-            3600, // min_voting_period (1 hour)
-            259200 // max_voting_period (3 days)
+            100 // min_stake_to_join
         );
 
         // Initialize council DAO creation registry
@@ -57,9 +55,7 @@ module dao_addr::council_dao_creation_test {
             vector::empty<u8>(), // logo
             vector::empty<u8>(), // background
             target_initial_council,
-            200, // min_stake_to_join
-            7200, // min_voting_period (2 hours)
-            432000 // max_voting_period (5 days)
+            200 // min_stake_to_join
         );
 
         // Verify proposal was created
@@ -140,9 +136,7 @@ module dao_addr::council_dao_creation_test {
             vector::empty<u8>(),
             vector::empty<u8>(),
             initial_council,
-            100,
-            3600,
-            259200
+            100
         );
 
         dao_core::init_council_dao_creation(council_creator, 86400);
@@ -179,9 +173,7 @@ module dao_addr::council_dao_creation_test {
             vector::empty<u8>(),
             vector::empty<u8>(),
             initial_council,
-            100,
-            3600,
-            259200
+            100
         );
 
         dao_core::init_council_dao_creation(council_creator, 86400);
@@ -199,9 +191,7 @@ module dao_addr::council_dao_creation_test {
             vector::empty<u8>(),
             vector::empty<u8>(),
             target_initial_council,
-            200,
-            7200,
-            432000
+            200
         );
 
         aptos_framework::coin::destroy_mint_cap(mint_cap);

@@ -84,8 +84,6 @@ module dao_addr::dao_core {
         background: vector<u8>,
         initial_council: vector<address>,
         min_stake_to_join: u64,
-        min_voting_period: u64,
-        max_voting_period: u64,
         created_at: u64,
         voting_deadline: u64,
         yes_votes: u64,
@@ -108,9 +106,7 @@ module dao_addr::dao_core {
         logo: vector<u8>,
         background: vector<u8>,
         initial_council: vector<address>,
-        min_stake_to_join: u64, // Now used for membership configuration
-        min_voting_period: u64,
-        max_voting_period: u64
+        min_stake_to_join: u64 // Now used for membership configuration
     ) {
         let addr = signer::address_of(account);
         assert!(!exists<DAOInfo>(addr), error::already_exists(0));
@@ -122,7 +118,6 @@ module dao_addr::dao_core {
         input_validation::validate_background(&background);
         input_validation::validate_address_list(&initial_council, input_validation::get_max_council_size());
         input_validation::validate_council_size(vector::length(&initial_council));
-        input_validation::validate_voting_period_bounds(min_voting_period, max_voting_period);
         
         // Validate minimum stake (should be reasonable - between 1 and 10000 APT)
         assert!(min_stake_to_join > 0, errors::invalid_amount());
@@ -145,7 +140,7 @@ module dao_addr::dao_core {
         // Initialize all required modules
         admin::init_admin(account, 1);
         membership::initialize_with_min_stake(account, min_stake_to_join);
-        proposal::initialize_proposals(account, min_voting_period, max_voting_period);
+        proposal::initialize_proposals(account);
         staking::init_staking(account);
         
         // Initialize rewards with default configuration
@@ -198,9 +193,7 @@ module dao_addr::dao_core {
         logo: vector<u8>,
         background: vector<u8>,
         initial_council: vector<address>,
-        min_stake_to_join: u64,
-        min_voting_period: u64,
-        max_voting_period: u64
+        min_stake_to_join: u64
     ) acquires DAOInfo, CouncilDAOCreationRegistry {
         let proposer = signer::address_of(council_member);
         
@@ -219,7 +212,6 @@ module dao_addr::dao_core {
         input_validation::validate_background(&background);
         input_validation::validate_address_list(&initial_council, input_validation::get_max_council_size());
         input_validation::validate_council_size(vector::length(&initial_council));
-        input_validation::validate_voting_period_bounds(min_voting_period, max_voting_period);
         
         assert!(min_stake_to_join > 0, errors::invalid_amount());
         assert!(min_stake_to_join <= 10000, errors::invalid_amount());
@@ -244,8 +236,6 @@ module dao_addr::dao_core {
             background,
             initial_council,
             min_stake_to_join,
-            min_voting_period,
-            max_voting_period,
             created_at,
             voting_deadline,
             yes_votes: 0,
@@ -397,7 +387,7 @@ module dao_addr::dao_core {
         // Initialize all required modules
         admin::init_admin(target_account, 1);
         membership::initialize_with_min_stake(target_account, proposal.min_stake_to_join);
-        proposal::initialize_proposals(target_account, proposal.min_voting_period, proposal.max_voting_period);
+        proposal::initialize_proposals(target_account);
         staking::init_staking(target_account);
         
         // Initialize rewards with default configuration

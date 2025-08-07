@@ -30,8 +30,6 @@ module dao_addr::create_dao_tests {
         let background = b"bg";
         let initial_council = vector::empty<address>();
         vector::push_back(&mut initial_council, signer::address_of(creator));
-        let min_voting_period = 3600u64;
-        let max_voting_period = 86400u64;
 
         // Create the DAO
         dao_core::create_dao(
@@ -41,9 +39,7 @@ module dao_addr::create_dao_tests {
             logo, 
             background,
             initial_council, 
-            30,  // min_quorum_percent (unused but required)
-            min_voting_period, 
-            max_voting_period
+            30  // min_stake_to_join
         );
 
         // Verify DAO was created by checking stored data

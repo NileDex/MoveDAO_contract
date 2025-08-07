@@ -81,8 +81,6 @@ module dao_addr::proposal {
     struct DaoProposals has key {
         proposals: vector<Proposal>,
         next_id: u64,
-        min_voting_period: u64,
-        max_voting_period: u64,
     }
 
     #[event]
@@ -109,17 +107,13 @@ module dao_addr::proposal {
     }
 
     public fun initialize_proposals(
-        account: &signer,
-        min_voting_period: u64,
-        max_voting_period: u64
+        account: &signer
     ) {
         let addr = signer::address_of(account);
         if (!exists<DaoProposals>(addr)) {
             let dao_proposals = DaoProposals {
                 proposals: vector::empty(),
                 next_id: 0,
-                min_voting_period,
-                max_voting_period,
             };
 
             move_to(account, dao_proposals);
@@ -142,8 +136,6 @@ module dao_addr::proposal {
         assert!(admin::is_admin(dao_addr, sender) || membership::is_member(dao_addr, sender), errors::not_authorized());
 
         let proposals = borrow_global_mut<DaoProposals>(dao_addr);
-        assert!(voting_duration_secs >= proposals.min_voting_period, errors::invalid_status());
-        assert!(voting_duration_secs <= proposals.max_voting_period, errors::invalid_status());
 
         let now = timestamp::now_seconds();
         let proposal_id = proposals.next_id;

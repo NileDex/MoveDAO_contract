@@ -39,9 +39,7 @@ module dao_addr::proposal_tests {
             b"logo",
             b"bg", 
             initial_council,
-            30,
-            3600,
-            86400
+            30
         );
 
         // Get the actual DAO address where data is stored

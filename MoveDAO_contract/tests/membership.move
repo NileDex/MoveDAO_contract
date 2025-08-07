@@ -33,9 +33,7 @@ module dao_addr::membership_tests {
             b"logo", 
             b"bg",
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(admin);
@@ -84,9 +82,7 @@ module dao_addr::membership_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(admin);
@@ -120,9 +116,7 @@ module dao_addr::membership_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(admin);
@@ -154,9 +148,7 @@ module dao_addr::membership_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(admin);
@@ -207,9 +199,7 @@ module dao_addr::membership_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(admin);
@@ -253,9 +243,7 @@ module dao_addr::membership_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = signer::address_of(admin);

@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-dao_addr = "0x160c30b861d6e3ac4864903423e6523a2ed873ae1b41132382f699b07ac684ec"
+dao_addr = "0x0b50fdae2cc76928a0b9d98b7e8076381e9ab10c8f41ba7848e85b9f28ee6e4b"
 
 [dev-addresses]
 

@@ -39,9 +39,7 @@ module dao_addr::council_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = @0x123;
@@ -86,9 +84,7 @@ module dao_addr::council_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = @0x123;
@@ -119,9 +115,7 @@ module dao_addr::council_tests {
             b"logo", 
             b"bg", 
             initial_council, 
-            30, 
-            3600, 
-            86400
+            30
         );
 
         let dao_addr = @0x123;

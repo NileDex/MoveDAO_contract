@@ -29,9 +29,7 @@ module dao_addr::rewards_test {
             b"logo",
             b"bg",
             council,
-            30, // min_quorum_percent
-            3600, // min_voting_period
-            86400 // max_voting_period
+            30 // min_stake_to_join
         );
     }
 
@@ -372,9 +370,7 @@ module dao_addr::rewards_test {
             b"logo",
             b"bg",
             initial_council,
-            30,
-            3600,
-            86400
+            30
         );
 
         // Make user stake first, then join as member
