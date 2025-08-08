@@ -4,6 +4,7 @@ module dao_addr::treasury {
     use aptos_framework::coin;
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::object::{Self, Object};
+    use aptos_framework::timestamp;
     use dao_addr::admin;
     use dao_addr::errors;
 
@@ -16,6 +17,9 @@ module dao_addr::treasury {
 
     struct Treasury has key {
         balance: coin::Coin<AptosCoin>,
+        daily_withdrawal_limit: u64,
+        last_withdrawal_day: u64,
+        daily_withdrawn: u64,
     }
 
     public fun init_treasury(account: &signer): Object<Treasury> {
@@ -24,6 +28,9 @@ module dao_addr::treasury {
         
         let treasury = Treasury { 
             balance: coin::zero<AptosCoin>(),
+            daily_withdrawal_limit: 1000000000, // 10 APT in octas
+            last_withdrawal_day: 0,
+            daily_withdrawn: 0,
         };
 
         // Initialize reentrancy guard
@@ -57,6 +64,15 @@ module dao_addr::treasury {
         
         let treasury = borrow_global_mut<Treasury>(treasury_addr);
         
+        // Check daily withdrawal limits
+        let current_day = timestamp::now_seconds() / 86400; // seconds in a day
+        if (treasury.last_withdrawal_day != current_day) {
+            treasury.last_withdrawal_day = current_day;
+            treasury.daily_withdrawn = 0;
+        };
+        assert!(treasury.daily_withdrawn + amount <= treasury.daily_withdrawal_limit, errors::withdrawal_limit_exceeded());
+        treasury.daily_withdrawn = treasury.daily_withdrawn + amount;
+        
         // Validate sufficient balance
         let current_balance = coin::value(&treasury.balance);
         assert!(current_balance >= amount, errors::insufficient_treasury());
@@ -65,11 +81,11 @@ module dao_addr::treasury {
         let coins = coin::extract(&mut treasury.balance, amount);
         let recipient = signer::address_of(account);
         
-        // Unlock before external call
-        guard.locked = false;
-        
-        // External interaction last
+        // CRITICAL FIX: Keep lock until after external call
         coin::deposit(recipient, coins);
+        
+        // Unlock AFTER external interaction
+        guard.locked = false;
     }
 
     // Internal function for reward distribution - RESTRICTED ACCESS
@@ -91,11 +107,11 @@ module dao_addr::treasury {
         // Checks-Effects-Interactions pattern: modify state before external call
         let coins = coin::extract(&mut treasury.balance, amount);
         
-        // Unlock before external call
-        guard.locked = false;
-        
-        // External interaction last
+        // CRITICAL FIX: Keep lock until after external call
         coin::deposit(recipient, coins);
+        
+        // Unlock AFTER external interaction
+        guard.locked = false;
     }
 
     #[view]
@@ -127,6 +143,15 @@ module dao_addr::treasury {
         
         let treasury = borrow_global_mut<Treasury>(treasury_addr);
         
+        // Check daily withdrawal limits
+        let current_day = timestamp::now_seconds() / 86400;
+        if (treasury.last_withdrawal_day != current_day) {
+            treasury.last_withdrawal_day = current_day;
+            treasury.daily_withdrawn = 0;
+        };
+        assert!(treasury.daily_withdrawn + amount <= treasury.daily_withdrawal_limit, errors::withdrawal_limit_exceeded());
+        treasury.daily_withdrawn = treasury.daily_withdrawn + amount;
+        
         // Validate sufficient balance
         let current_balance = coin::value(&treasury.balance);
         assert!(current_balance >= amount, errors::insufficient_treasury());
@@ -135,11 +160,11 @@ module dao_addr::treasury {
         let coins = coin::extract(&mut treasury.balance, amount);
         let recipient = signer::address_of(account);
         
-        // Unlock before external call
-        guard.locked = false;
-        
-        // External interaction last
+        // CRITICAL FIX: Keep lock until after external call
         coin::deposit(recipient, coins);
+        
+        // Unlock AFTER external interaction
+        guard.locked = false;
     }
 
     #[view]

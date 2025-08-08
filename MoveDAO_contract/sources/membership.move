@@ -61,16 +61,42 @@ module dao_addr::membership {
         }
     }
 
+    /// Join the DAO as a member
+    /// 
+    /// MINIMUM STAKE ENFORCEMENT:
+    /// - Users must have staked at least the minimum amount before joining
+    /// - Minimum stake is set when DAO is created (e.g., 10 MOVE tokens for Gorilla Moverz)
+    /// - If user hasn't staked enough tokens, join() will fail with min_stake_required error
+    /// - This prevents people from joining without commitment to the DAO
+    /// 
+    /// PROCESS:
+    /// 1. Check if user is already a member (prevent duplicate joins)
+    /// 2. Get the DAO's minimum stake requirement from config
+    /// 3. Check user's current staked balance
+    /// 4. If staked balance >= minimum requirement -> Allow join
+    /// 5. If staked balance < minimum requirement -> Reject with error
+    /// 6. Add user to member list and emit join event
+    /// 
+    /// EXAMPLE FOR GORILLA MOVERZ:
+    /// - Minimum stake: 10 MOVE tokens
+    /// - User stakes 15 MOVE -> Can join (15 >= 10)
+    /// - User stakes 5 MOVE -> Cannot join (5 < 10)
+    /// - User stakes 0 MOVE -> Cannot join (0 < 10)
     public entry fun join(account: &signer, dao_addr: address) acquires MemberList, MembershipConfig {
         let addr = signer::address_of(account);
         let member_list = borrow_global_mut<MemberList>(dao_addr);
         
+        // Prevent duplicate membership
         errors::require_not_exists(!simple_map::contains_key(&member_list.members, &addr), errors::already_member());
         
+        // Get the DAO's minimum stake requirement
         let config = borrow_global<MembershipConfig>(dao_addr);
+        // Check user's current staked balance
         let stake_amount = staking::get_staked_balance(addr);
+        // Enforce minimum stake requirement - this is the key validation!
         assert!(stake_amount >= config.min_stake_to_join, errors::min_stake_required());
         
+        // User meets requirements - add to member list
         simple_map::add(&mut member_list.members, addr, Member {
             joined_at: timestamp::now_seconds(),
         });
@@ -79,6 +105,7 @@ module dao_addr::membership {
         assert!(member_list.total_members < 18446744073709551615u64, errors::invalid_amount());
         member_list.total_members = member_list.total_members + 1;
         
+        // Emit event for tracking
         event::emit(MemberJoined {
             member: addr
         });
@@ -104,11 +131,12 @@ module dao_addr::membership {
         if (!exists<MemberList>(dao_addr)) return false;
         if (!exists<MembershipConfig>(dao_addr)) return false;
         
-        // Check if member is in the list
+        // Check if member is in the list (has joined the DAO)
         let is_in_list = simple_map::contains_key(&borrow_global<MemberList>(dao_addr).members, &member);
         if (!is_in_list) return false;
         
-        // Verify member still meets minimum stake requirement (prevents membership gaming)
+        // CRITICAL: Verify member still meets minimum stake requirement (prevents membership gaming)
+        // This is the key validation that enforces minimum stake for proposal creation
         let config = borrow_global<MembershipConfig>(dao_addr);
         let current_stake = staking::get_staked_balance(member);
         current_stake >= config.min_stake_to_join

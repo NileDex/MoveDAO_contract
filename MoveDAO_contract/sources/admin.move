@@ -77,12 +77,26 @@ module dao_addr::admin {
         
         let admin_addr = signer::address_of(admin_account);
         errors::require_admin(is_admin(dao_addr, admin_addr));
+        
+        // Get caller's role before acquiring mutable reference
+        let caller_role = get_admin_role(dao_addr, admin_addr);
         let admin_list = borrow_global_mut<AdminList>(dao_addr);
+        
+        // Role hierarchy enforcement: only super admins can add super admins
+        if (role == ROLE_SUPER_ADMIN) {
+            assert!(caller_role == ROLE_SUPER_ADMIN, errors::not_authorized());
+        };
+        
+        // Only super admins can create permanent admins (expires_in_secs = 0)
+        if (expires_in_secs == 0) {
+            assert!(caller_role == ROLE_SUPER_ADMIN, errors::not_authorized());
+        };
+        
         let now = timestamp::now_seconds();
         let expires_at = if (expires_in_secs > 0) now + expires_in_secs else 0;
 
-        // Require at least 2 seconds for temporary admins to avoid race conditions
-        if (expires_at > 0 && expires_in_secs < 2) abort errors::expiration_past();
+        // Require at least 300 seconds (5 minutes) for temporary admins to prevent race conditions
+        if (expires_at > 0 && expires_in_secs < 300) abort errors::expiration_past();
 
         simple_map::add(&mut admin_list.admins, new_admin, Admin {
             role,
@@ -102,6 +116,9 @@ module dao_addr::admin {
         let admin_addr = signer::address_of(admin_account);
         errors::require_admin(is_admin(dao_addr, admin_addr));
         
+        // Get caller's role before acquiring mutable reference
+        let caller_role = get_admin_role(dao_addr, admin_addr);
+        
         let admin_list = borrow_global_mut<AdminList>(dao_addr);
         errors::require_exists(simple_map::contains_key(&admin_list.admins, &admin_to_remove), errors::admin_not_found());
         
@@ -109,8 +126,10 @@ module dao_addr::admin {
         let role = admin.role;
         let expires_at = admin.expires_at;
         
-        // Prevent removing super admins if it would violate minimum constraint
+        // Role hierarchy enforcement: only super admins can remove super admins
         if (role == ROLE_SUPER_ADMIN) {
+            assert!(caller_role == ROLE_SUPER_ADMIN, errors::not_authorized());
+            // Prevent removing super admins if it would violate minimum constraint
             let super_admin_count = count_super_admins(admin_list);
             assert!(super_admin_count > admin_list.min_super_admins, errors::min_members_constraint());
         };

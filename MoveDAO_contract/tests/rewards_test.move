@@ -77,9 +77,10 @@ module dao_addr::rewards_test {
             dao_addr,
             string::utf8(b"Test Proposal"),
             string::utf8(b"Description"),
-            3600,
-            3600,
-            30
+            1,
+            7200,
+            30,
+            50
         );
 
         // Start voting
@@ -144,9 +145,10 @@ module dao_addr::rewards_test {
             dao_addr,
             string::utf8(b"Test Proposal"),
             string::utf8(b"Description"),
-            3600,
-            3600,
-            30
+            1,
+            7200,
+            30,
+            50
         );
 
         // Check pending rewards for proposal creator
@@ -192,19 +194,23 @@ module dao_addr::rewards_test {
             dao_addr,
             string::utf8(b"Test Proposal"),
             string::utf8(b"Description"),
-            3600,
-            3600,
-            30
+            2,
+            7200,
+            30,
+            50
         );
 
         // Start voting
         proposal::start_voting(admin, dao_addr, 0);
 
+        // Wait for voting period to start (advance to voting start time)
+        timestamp::fast_forward_seconds(2);
+
         // Cast a yes vote to make it pass
         proposal::cast_vote(voter1, dao_addr, 0, 1); // vote_yes
 
         // Fast forward past voting period
-        timestamp::fast_forward_seconds(3601);
+        timestamp::fast_forward_seconds(7200);
 
         // Finalize proposal (this should trigger successful proposal reward)
         proposal::finalize_proposal(admin, dao_addr, 0);
@@ -326,9 +332,10 @@ module dao_addr::rewards_test {
             dao_addr,
             string::utf8(b"Test Proposal"),
             string::utf8(b"Description"),
-            3600,
-            3600,
-            30
+            1,
+            7200,
+            30,
+            50
         );
 
         // Start voting and cast vote

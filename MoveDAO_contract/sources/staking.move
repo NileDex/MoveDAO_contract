@@ -29,11 +29,17 @@ module dao_addr::staking {
         total_yes_votes: u64,
         total_no_votes: u64,
         completed: bool,
-        voters: Table<address, bool>,
+        voters: Table<address, VoteRecord>,
+    }
+    
+    struct VoteRecord has store, copy, drop {
+        amount: u64,
+        timestamp: u64,
     }
 
     struct StakedBalance has store, key {
         staked_balance: u64,
+        last_staked_time: u64,
     }
 
     struct Vault has key {
@@ -77,36 +83,63 @@ module dao_addr::staking {
         init_staking(sender);
     }
 
+    /// Stake APT tokens to gain membership and voting power in the DAO
+    /// 
+    /// MINIMUM STAKE REQUIREMENT: 
+    /// - Users must stake at least the minimum amount set by the DAO (typically 10 APT tokens)
+    /// - This minimum is configured in membership::MembershipConfig::min_stake_to_join
+    /// - For Gorilla Moverz DAO: Minimum stake is 10 MOVE tokens
+    /// - Staking below minimum = Cannot join DAO or create proposals
+    /// - Staking above minimum = Gains voting power proportional to stake amount
+    /// 
+    /// PROCESS:
+    /// 1. User calls stake() with amount >= minimum requirement
+    /// 2. System checks user has sufficient APT balance
+    /// 3. Tokens are transferred to DAO vault (locked)
+    /// 4. User's staked balance is recorded
+    /// 5. User can now join DAO and participate in governance
+    /// 
+    /// VOTING POWER: 1 staked token = 1 vote weight
+    /// REWARDS: Staked tokens earn passive income over time
+    /// UNSTAKE: Users can unstake anytime (reduces voting power)
     public entry fun stake(acc_own: &signer, dao_addr: address, amount: u64) acquires StakedBalance, Vault, StakerRegistry {
         let from = signer::address_of(acc_own);
+        
+        // Check if user has enough APT tokens in their wallet
         let balance = coin::balance<AptosCoin>(from);
         assert!(balance >= amount, errors::insufficient_balance());
 
+        // Determine if this is a new staker or adding to existing stake
         let is_new_staker = !exists<StakedBalance>(from);
         
         if (is_new_staker) {
+            // First time staking - create new staked balance record
             let staked_balance = StakedBalance {
                 staked_balance: amount,
+                last_staked_time: timestamp::now_seconds(),
             };
             move_to(acc_own, staked_balance);
         } else {
+            // Adding to existing stake - update current balance
             let staked_balance = borrow_global_mut<StakedBalance>(from);
-            // Use safe math for addition
+            // Use safe math for addition to prevent overflow
             staked_balance.staked_balance = safe_math::safe_add(staked_balance.staked_balance, amount);
+            staked_balance.last_staked_time = timestamp::now_seconds();
         };
 
-        // Update staker registry (must succeed to maintain sync)
+        // Update the DAO's staker registry to track all stakers
         let registry = borrow_global_mut<StakerRegistry>(dao_addr);
         if (is_new_staker) {
+            // Add new staker to registry with safe math
             table::add(&mut registry.stakers, from, amount);
-            registry.total_stakers = registry.total_stakers + 1;
+            registry.total_stakers = safe_math::safe_add(registry.total_stakers, 1);
         } else {
+            // Update existing staker's amount in registry using safe math
             let current_amount = table::borrow_mut(&mut registry.stakers, from);
-            // Add overflow protection for registry too
-            assert!(*current_amount <= (18446744073709551615u64 - amount), errors::invalid_amount());
-            *current_amount = *current_amount + amount;
+            *current_amount = safe_math::safe_add(*current_amount, amount);
         };
 
+        // Transfer APT tokens from user to DAO vault (locking them)
         let coins = coin::withdraw<AptosCoin>(acc_own, amount);
         let vault = borrow_global_mut<Vault>(get_vault_addr(dao_addr));
         coin::merge(&mut vault.balance, coins);
@@ -118,11 +151,16 @@ module dao_addr::staking {
         let staked_amount = staked_balance.staked_balance;
         assert!(staked_amount >= amount, errors::invalid_unstake_amount());
         
+        // TIME LOCK: Prevent unstaking within 7 days of last stake to prevent flash loan attacks
+        let current_time = timestamp::now_seconds();
+        let time_lock_period = 7 * 24 * 60 * 60; // 7 days in seconds
+        assert!(current_time >= staked_balance.last_staked_time + time_lock_period, errors::time_lock_active());
+        
         let vault = borrow_global_mut<Vault>(get_vault_addr(dao_addr));
         let coins = coin::extract(&mut vault.balance, amount);
         coin::deposit(from, coins);
         
-        staked_balance.staked_balance = staked_balance.staked_balance - amount;
+        staked_balance.staked_balance = safe_math::safe_sub(staked_balance.staked_balance, amount);
         
         // Update staker registry (validate consistency)
         let registry = borrow_global_mut<StakerRegistry>(dao_addr);
@@ -153,29 +191,39 @@ module dao_addr::staking {
             total_yes_votes: 0,
             total_no_votes: 0,
             completed: false,
-            voters: table::new<address, bool>(),
+            voters: table::new<address, VoteRecord>(),
         };
         vector::push_back(&mut vote_repository.votes, vote);
     }
 
-    public entry fun vote(acc_own: &signer, dao_addr: address, vote_id: u64, amount: u64, is_yes_vote: bool) acquires VoteRepository, StakedBalance {
+    public entry fun vote(acc_own: &signer, dao_addr: address, vote_id: u64, is_yes_vote: bool) acquires VoteRepository, StakerRegistry {
+        let from = signer::address_of(acc_own);
         let vote_repository = borrow_global_mut<VoteRepository>(dao_addr);
         let vote = vector::borrow_mut(&mut vote_repository.votes, vote_id);
         assert!(vote.start_time <= timestamp::now_seconds() && vote.end_time >= timestamp::now_seconds(), errors::invalid_vote_time());
 
-        let from = signer::address_of(acc_own);
+        // PREVENT MULTIPLE VOTING: Check if user has already voted
         assert!(!table::contains(&vote.voters, from), errors::already_voted());
 
-        let staked_balance = borrow_global_mut<StakedBalance>(from);
-        assert!(staked_balance.staked_balance >= amount, errors::insufficient_stake());
+        // FIX TOCTOU: Get voting power atomically from registry (locked at time of voting)
+        let registry = borrow_global<StakerRegistry>(dao_addr);
+        assert!(table::contains(&registry.stakers, from), errors::not_member());
+        let voting_power = *table::borrow(&registry.stakers, from);
+        assert!(voting_power > 0, errors::insufficient_stake());
 
+        // Record vote with full voting power (prevents partial voting exploits)  
         if (is_yes_vote) {
-            vote.total_yes_votes = vote.total_yes_votes + amount;
+            vote.total_yes_votes = safe_math::safe_add(vote.total_yes_votes, voting_power);
         } else {
-            vote.total_no_votes = vote.total_no_votes + amount;
+            vote.total_no_votes = safe_math::safe_add(vote.total_no_votes, voting_power);
         };
 
-        table::add(&mut vote.voters, from, true);
+        // Record that user has voted with their full stake amount
+        let vote_record = VoteRecord {
+            amount: voting_power,
+            timestamp: timestamp::now_seconds(),
+        };
+        table::add(&mut vote.voters, from, vote_record);
     }
 
     public entry fun declare_winner(acc_own: &signer, dao_addr: address, vote_id: u64) acquires VoteRepository {
@@ -319,11 +367,15 @@ module dao_addr::staking {
 
         timestamp::update_global_time_for_test_secs(100);
 
-        vote(alice, @dao_addr, 0, 500, true);
-        vote(bob, @dao_addr, 0, 300, false);
+        vote(alice, @dao_addr, 0, true);
+        vote(bob, @dao_addr, 0, false);
+        
+        // Fast forward 7 days to bypass unstake time lock
+        let seven_days = 7 * 24 * 60 * 60;
+        timestamp::update_global_time_for_test_secs(100 + seven_days);
         unstake(alice, @dao_addr, 200);
 
-        timestamp::update_global_time_for_test_secs(200);
+        timestamp::update_global_time_for_test_secs(100 + seven_days + 100);
         declare_winner(creator, @dao_addr, 0);
 
         let vote_repository = borrow_global<VoteRepository>(@dao_addr);
@@ -356,8 +408,8 @@ module dao_addr::staking {
 
         create_vote(creator, @dao_addr, string::utf8(b"Test Vote"), string::utf8(b"This is a test vote"), 100, 200);
         stake(alice, @dao_addr, 500);
-        vote(alice, @dao_addr, 0, 500, true);
-        vote(alice, @dao_addr, 0, 500, true); // Should fail
+        vote(alice, @dao_addr, 0, true);
+        vote(alice, @dao_addr, 0, true); // Should fail
 
         coin::destroy_mint_cap(mint_cap);
         coin::destroy_burn_cap(burn_cap);

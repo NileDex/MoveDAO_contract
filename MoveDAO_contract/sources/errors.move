@@ -76,11 +76,13 @@ module dao_addr::errors {
     const EINVALID_REWARD_AMOUNT: u64 = 302;
     const EINVALID_APY: u64 = 303;
     const EINVALID_VOTE_TIME: u64 = 304;
+    const ETIME_LOCK_ACTIVE: u64 = 305;
 
     // =============================================================================
     // TREASURY MODULE ERROR CODES (400-449)
     // =============================================================================
     const EINSUFFICIENT_TREASURY: u64 = 400;
+    const EWITHDRAWAL_LIMIT_EXCEEDED: u64 = 401;
 
     // =============================================================================
     // REWARDS MODULE ERROR CODES (450-499)
@@ -118,6 +120,7 @@ module dao_addr::errors {
     const EPROPOSAL_NOT_APPROVED: u64 = 607;
     const EUNAUTHORIZED: u64 = 608;
     const EREGISTRY_NOT_INITIALIZED: u64 = 609;
+    const ERATE_LIMIT_EXCEEDED: u64 = 610;
 
     // =============================================================================
     // ERROR HELPER FUNCTIONS
@@ -169,9 +172,11 @@ module dao_addr::errors {
     public fun invalid_reward_amount(): u64 { EINVALID_REWARD_AMOUNT }
     public fun invalid_apy(): u64 { EINVALID_APY }
     public fun invalid_vote_time(): u64 { EINVALID_VOTE_TIME }
+    public fun time_lock_active(): u64 { ETIME_LOCK_ACTIVE }
 
     // Treasury module errors
     public fun insufficient_treasury(): u64 { EINSUFFICIENT_TREASURY }
+    public fun withdrawal_limit_exceeded(): u64 { EWITHDRAWAL_LIMIT_EXCEEDED }
 
     // Rewards module errors
     public fun invalid_reward_type(): u64 { EINVALID_REWARD_TYPE }
@@ -203,6 +208,7 @@ module dao_addr::errors {
     public fun proposal_not_approved(): u64 { EPROPOSAL_NOT_APPROVED }
     public fun unauthorized(): u64 { EUNAUTHORIZED }
     public fun registry_not_initialized(): u64 { EREGISTRY_NOT_INITIALIZED }
+    public fun rate_limit_exceeded(): u64 { ERATE_LIMIT_EXCEEDED }
 
     // =============================================================================
     // ADVANCED ERROR HELPER FUNCTIONS

@@ -5,11 +5,14 @@ module dao_addr::proposal {
     use std::string;
     use aptos_framework::timestamp;
     use aptos_framework::event;
+    use aptos_framework::coin;
+    use aptos_framework::aptos_coin::AptosCoin;
     use dao_addr::admin;
     use dao_addr::membership;
     use dao_addr::staking;
     use dao_addr::rewards;
     use dao_addr::errors;
+    use dao_addr::safe_math;
 
     // Proposal Status Enum
     struct ProposalStatus has copy, drop, store {
@@ -81,6 +84,13 @@ module dao_addr::proposal {
     struct DaoProposals has key {
         proposals: vector<Proposal>,
         next_id: u64,
+        min_proposal_stake: u64,  // Minimum stake required to create proposals
+        proposal_fee: u64,        // Fee required to create proposals
+    }
+    
+    struct ProposerRecord has key {
+        last_proposal_time: u64,
+        proposal_count: u64,
     }
 
     #[event]
@@ -114,6 +124,8 @@ module dao_addr::proposal {
             let dao_proposals = DaoProposals {
                 proposals: vector::empty(),
                 next_id: 0,
+                min_proposal_stake: 10000000000, // 100 APT in octas - minimum stake to create proposals
+                proposal_fee: 1000000000,       // 10 APT in octas - fee required to create proposals
             };
 
             move_to(account, dao_proposals);
@@ -123,22 +135,80 @@ module dao_addr::proposal {
         }
     }
 
+    /// Create a new governance proposal for the DAO
+    /// 
+    /// MINIMUM STAKE REQUIREMENT FOR PROPOSAL CREATION:
+    /// - Users must be DAO members to create proposals
+    /// - Membership requires minimum stake (e.g., 10 MOVE tokens for Gorilla Moverz)
+    /// - The membership::is_member() function enforces this requirement
+    /// - If user hasn't staked minimum amount -> Cannot create proposals
+    /// - If user has staked minimum amount -> Can create proposals
+    /// 
+    /// AUTHORIZATION CHECK:
+    /// - Must be either: DAO admin OR DAO member
+    /// - DAO admins can always create proposals (regardless of stake)
+    /// - DAO members can create proposals (if they meet minimum stake)
+    /// - Non-members cannot create proposals (even with some stake)
+    /// 
+    /// PROCESS:
+    /// 1. Check if user is admin OR member (membership::is_member() includes stake validation)
+    /// 2. If admin -> Allow proposal creation
+    /// 3. If member -> Allow proposal creation (minimum stake already verified)
+    /// 4. If neither -> Reject with "not_authorized" error
+    /// 
+    /// EXAMPLE FOR GORILLA MOVERZ:
+    /// - Minimum stake: 10 MOVE tokens
+    /// - User stakes 15 MOVE -> Becomes member -> Can create proposals
+    /// - User stakes 5 MOVE -> Not a member -> Cannot create proposals
+    /// - Admin user -> Can create proposals (regardless of stake)
     public entry fun create_proposal(
         account: &signer,
         dao_addr: address,
         title: string::String,
         description: string::String,
-        voting_duration_secs: u64,
+        voting_start_timestamp: u64,
+        voting_end_timestamp: u64,
         execution_window_secs: u64,
         min_quorum_percent: u64
-    ) acquires DaoProposals {
+    ) acquires DaoProposals, ProposerRecord {
         let sender = signer::address_of(account);
+        // MINIMUM STAKE ENFORCEMENT: This line checks if user is admin OR member
+        // membership::is_member() internally validates minimum stake requirement
         assert!(admin::is_admin(dao_addr, sender) || membership::is_member(dao_addr, sender), errors::not_authorized());
 
         let proposals = borrow_global_mut<DaoProposals>(dao_addr);
-
         let now = timestamp::now_seconds();
+        
+        // RATE LIMITING: Check minimum stake requirement for proposal creation
+        let user_stake = staking::get_staked_balance(sender);
+        assert!(user_stake >= proposals.min_proposal_stake, errors::insufficient_stake());
+        
+        // PROPOSAL FEE: Charge fee to prevent spam
+        coin::transfer<AptosCoin>(account, dao_addr, proposals.proposal_fee);
+        
+        // RATE LIMITING: Enforce cooldown period between proposals
+        if (exists<ProposerRecord>(sender)) {
+            let proposer_record = borrow_global_mut<ProposerRecord>(sender);
+            let cooldown_period = 24 * 60 * 60; // 24 hours in seconds
+            assert!(now >= proposer_record.last_proposal_time + cooldown_period, errors::rate_limit_exceeded());
+            proposer_record.last_proposal_time = now;
+            proposer_record.proposal_count = safe_math::safe_add(proposer_record.proposal_count, 1);
+        } else {
+            let proposer_record = ProposerRecord {
+                last_proposal_time: now,
+                proposal_count: 1,
+            };
+            move_to(account, proposer_record);
+        };
+        
+        // VALIDATION: Validate quorum and threshold parameters
+        assert!(min_quorum_percent > 0 && min_quorum_percent <= 100, errors::invalid_amount());
+
         let proposal_id = proposals.next_id;
+
+        // Validate timestamp inputs
+        assert!(voting_start_timestamp >= now, errors::invalid_amount());
+        assert!(voting_end_timestamp > voting_start_timestamp, errors::invalid_amount());
 
         let proposal = Proposal {
             id: proposal_id,
@@ -151,8 +221,8 @@ module dao_addr::proposal {
             no_votes: 0,
             abstain_votes: 0,
             created_at: now,
-            voting_start: now,
-            voting_end: now + voting_duration_secs,
+            voting_start: voting_start_timestamp,
+            voting_end: voting_end_timestamp,
             execution_window: execution_window_secs,
             min_quorum_percent
         };

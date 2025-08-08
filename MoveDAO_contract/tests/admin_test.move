@@ -193,12 +193,12 @@ module dao_addr::admin_tests {
         let dao_addr = signer::address_of(alice);
         let bob_addr = signer::address_of(bob);
 
-        // Add temporary admin that expires in 100 seconds
-        admin::add_admin(alice, dao_addr, bob_addr, admin::role_temporary(), 100);
+        // Add temporary admin that expires in 400 seconds (> 300 second minimum)
+        admin::add_admin(alice, dao_addr, bob_addr, admin::role_temporary(), 400);
         assert!(admin::is_admin(dao_addr, bob_addr), EASSERTION_FAILED);
         
         // Fast forward time past expiration
-        timestamp::fast_forward_seconds(101);
+        timestamp::fast_forward_seconds(401);
         
         // Admin should no longer be valid due to expiration
         assert!(!admin::is_admin(dao_addr, bob_addr), EASSERTION_FAILED + 1);
