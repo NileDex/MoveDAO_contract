@@ -32,6 +32,7 @@ module dao_addr::council_dao_creation_test {
         dao_core::create_dao(
             council_creator,
             string::utf8(b"Council DAO"),
+            string::utf8(b"Subname"),
             string::utf8(b"A DAO managed by a council"),
             vector::empty<u8>(), // logo
             vector::empty<u8>(), // background
@@ -51,6 +52,7 @@ module dao_addr::council_dao_creation_test {
             @dao_addr,
             @0x5,
             string::utf8(b"New DAO"),
+            string::utf8(b"Subname"),
             string::utf8(b"A new DAO created by council"),
             vector::empty<u8>(), // logo
             vector::empty<u8>(), // background
@@ -132,6 +134,7 @@ module dao_addr::council_dao_creation_test {
         dao_core::create_dao(
             council_creator,
             string::utf8(b"Council DAO"),
+            string::utf8(b"Subname"),
             string::utf8(b"A DAO managed by a council"),
             vector::empty<u8>(),
             vector::empty<u8>(),
@@ -169,6 +172,7 @@ module dao_addr::council_dao_creation_test {
         dao_core::create_dao(
             council_creator,
             string::utf8(b"Council DAO"),
+            string::utf8(b"Subname"),
             string::utf8(b"A DAO managed by a council"),
             vector::empty<u8>(),
             vector::empty<u8>(),
@@ -187,6 +191,7 @@ module dao_addr::council_dao_creation_test {
             @dao_addr,
             @0x3,
             string::utf8(b"New DAO"),
+            string::utf8(b"Subname"),
             string::utf8(b"A new DAO created by council"),
             vector::empty<u8>(),
             vector::empty<u8>(),

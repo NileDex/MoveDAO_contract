@@ -22,6 +22,7 @@ module dao_addr::launchpad_test {
         dao_core::create_dao(
             admin,
             string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"),
             string::utf8(b"Test Description"),
             b"logo",
             b"bg",

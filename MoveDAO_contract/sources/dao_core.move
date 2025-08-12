@@ -22,6 +22,7 @@ module dao_addr::dao_core {
 
     struct DAOInfo has key {
         name: string::String,
+        subname: string::String,
         description: string::String,
         logo: vector<u8>,
         background: vector<u8>,
@@ -35,6 +36,7 @@ module dao_addr::dao_core {
         dao_address: address,
         creator: address,
         name: string::String,
+        subname: string::String,
         description: string::String,
         created_at: u64,
         initial_council_size: u64
@@ -58,6 +60,7 @@ module dao_addr::dao_core {
         proposer: address,
         target_dao_address: address,
         name: string::String,
+        subname: string::String,
         description: string::String,
         created_at: u64
     }
@@ -68,6 +71,7 @@ module dao_addr::dao_core {
         creating_council: address,
         proposal_id: u64,
         name: string::String,
+        subname: string::String,
         description: string::String,
         created_at: u64,
         yes_votes: u64,
@@ -79,6 +83,7 @@ module dao_addr::dao_core {
         proposer: address,
         target_dao_address: address,
         name: string::String,
+        subname: string::String,
         description: string::String,
         logo: vector<u8>,
         background: vector<u8>,
@@ -102,6 +107,7 @@ module dao_addr::dao_core {
     public entry fun create_dao(
         account: &signer,
         name: string::String,
+        subname: string::String,
         description: string::String,
         logo: vector<u8>,
         background: vector<u8>,
@@ -129,6 +135,7 @@ module dao_addr::dao_core {
 
         move_to(account, DAOInfo {
             name,
+            subname,
             description,
             logo,
             background,
@@ -158,6 +165,7 @@ module dao_addr::dao_core {
             dao_address: addr,
             creator: addr,
             name,
+            subname,
             description,
             created_at,
             initial_council_size: vector::length(&initial_council)
@@ -189,6 +197,7 @@ module dao_addr::dao_core {
         council_dao_addr: address,
         target_dao_address: address,
         name: string::String,
+        subname: string::String,
         description: string::String,
         logo: vector<u8>,
         background: vector<u8>,
@@ -231,6 +240,7 @@ module dao_addr::dao_core {
             proposer,
             target_dao_address,
             name,
+            subname,
             description,
             logo,
             background,
@@ -254,6 +264,7 @@ module dao_addr::dao_core {
             proposer,
             target_dao_address,
             name,
+            subname,
             description,
             created_at
         });
@@ -344,6 +355,7 @@ module dao_addr::dao_core {
                 creating_council: council_dao_addr,
                 proposal_id,
                 name: proposal.name,
+                subname: proposal.subname,
                 description: proposal.description,
                 created_at: timestamp::now_seconds(),
                 yes_votes: proposal.yes_votes,
@@ -376,6 +388,7 @@ module dao_addr::dao_core {
 
         move_to(target_account, DAOInfo {
             name: proposal.name,
+            subname: proposal.subname,
             description: proposal.description,
             logo: proposal.logo,
             background: proposal.background,
@@ -405,6 +418,7 @@ module dao_addr::dao_core {
             dao_address: addr,
             creator: addr,
             name: proposal.name,
+            subname: proposal.subname,
             description: proposal.description,
             created_at,
             initial_council_size: vector::length(&proposal.initial_council)

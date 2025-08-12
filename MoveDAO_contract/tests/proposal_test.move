@@ -35,6 +35,7 @@ module dao_addr::proposal_tests {
         dao_core::create_dao(
             dao_admin,
             string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"),
             string::utf8(b"Description"),
             b"logo",
             b"bg", 

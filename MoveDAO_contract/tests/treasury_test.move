@@ -24,7 +24,8 @@ module dao_addr::treasury_test {
         let council = vector::singleton(@0x123);
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -53,7 +54,8 @@ module dao_addr::treasury_test {
         let council = vector::singleton(@0x123);
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -91,7 +93,8 @@ module dao_addr::treasury_test {
         let council = vector::singleton(@0x123);
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -123,7 +126,8 @@ module dao_addr::treasury_test {
         let council = vector::singleton(@0x123);
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -156,7 +160,8 @@ module dao_addr::treasury_test {
         let council = vector::singleton(@0x123);
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -186,7 +191,8 @@ module dao_addr::treasury_test {
         let council = vector::singleton(@0x123);
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -228,7 +234,8 @@ module dao_addr::treasury_test {
         let council = vector::singleton(@0x123);
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -264,7 +271,8 @@ module dao_addr::treasury_test {
         let council = vector::singleton(@0x123);
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 

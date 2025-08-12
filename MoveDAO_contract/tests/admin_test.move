@@ -30,7 +30,8 @@ module dao_addr::admin_tests {
         vector::push_back(&mut initial_council, signer::address_of(alice));
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -70,7 +71,8 @@ module dao_addr::admin_tests {
         vector::push_back(&mut initial_council, signer::address_of(alice));
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -119,7 +121,8 @@ module dao_addr::admin_tests {
         vector::push_back(&mut initial_council, signer::address_of(alice));
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -151,7 +154,8 @@ module dao_addr::admin_tests {
         vector::push_back(&mut initial_council, signer::address_of(alice));
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -182,7 +186,8 @@ module dao_addr::admin_tests {
         vector::push_back(&mut initial_council, signer::address_of(alice));
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -221,7 +226,8 @@ module dao_addr::admin_tests {
         vector::push_back(&mut initial_council, signer::address_of(alice));
         dao_core::create_dao(
             alice, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 

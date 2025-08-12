@@ -3,7 +3,7 @@
 ## What is a DAO?
 A DAO is like a digital community club where members vote on decisions and earn rewards.
 
-## Step 1: Prepare Your Information
+Prepare Your Information
 - **DAO Name**: "Gorilla Moverz DAO"
 - **Description**: "Community-driven decisions for Gorilla Moverz"
 - **Minimum Stake**: 10 MOVE tokens 

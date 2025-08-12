@@ -25,6 +25,7 @@ module dao_addr::rewards_test {
         dao_core::create_dao(
             admin,
             string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"),
             string::utf8(b"Test Description"),
             b"logo",
             b"bg",
@@ -373,6 +374,7 @@ module dao_addr::rewards_test {
         dao_core::create_dao(
             &dao_admin,
             string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"),
             string::utf8(b"Description"),
             b"logo",
             b"bg",

@@ -34,7 +34,8 @@ module dao_addr::create_dao_tests {
         // Create the DAO
         dao_core::create_dao(
             creator, 
-            name, 
+            name,
+            string::utf8(b"Subname"), 
             description, 
             logo, 
             background,

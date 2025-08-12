@@ -29,6 +29,7 @@ module dao_addr::membership_tests {
         dao_core::create_dao(
             admin, 
             string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"),
             string::utf8(b"Description"), 
             b"logo", 
             b"bg",
@@ -77,7 +78,8 @@ module dao_addr::membership_tests {
         let initial_council = vector::singleton(@dao_addr);
         dao_core::create_dao(
             admin, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -111,7 +113,8 @@ module dao_addr::membership_tests {
         let initial_council = vector::singleton(@dao_addr);
         dao_core::create_dao(
             admin, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -143,7 +146,8 @@ module dao_addr::membership_tests {
         let initial_council = vector::singleton(@dao_addr);
         dao_core::create_dao(
             admin, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -194,7 +198,8 @@ module dao_addr::membership_tests {
         let initial_council = vector::singleton(@dao_addr);
         dao_core::create_dao(
             admin, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
@@ -238,7 +243,8 @@ module dao_addr::membership_tests {
         let initial_council = vector::singleton(@dao_addr);
         dao_core::create_dao(
             admin, 
-            string::utf8(b"Test DAO"), 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
             string::utf8(b"Description"),
             b"logo", 
             b"bg", 
