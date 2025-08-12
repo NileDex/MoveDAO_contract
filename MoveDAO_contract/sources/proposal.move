@@ -84,7 +84,6 @@ module dao_addr::proposal {
     struct DaoProposals has key {
         proposals: vector<Proposal>,
         next_id: u64,
-        min_proposal_stake: u64,  // Minimum stake required to create proposals
         proposal_fee: u64,        // Fee required to create proposals
     }
     
@@ -124,7 +123,6 @@ module dao_addr::proposal {
             let dao_proposals = DaoProposals {
                 proposals: vector::empty(),
                 next_id: 0,
-                min_proposal_stake: 10000000000, // 100 APT in octas - minimum stake to create proposals
                 proposal_fee: 1000000000,       // 10 APT in octas - fee required to create proposals
             };
 
@@ -138,28 +136,30 @@ module dao_addr::proposal {
     /// Create a new governance proposal for the DAO
     /// 
     /// MINIMUM STAKE REQUIREMENT FOR PROPOSAL CREATION:
-    /// - Users must be DAO members to create proposals
-    /// - Membership requires minimum stake (e.g., 10 MOVE tokens for Gorilla Moverz)
-    /// - The membership::is_member() function enforces this requirement
-    /// - If user hasn't staked minimum amount -> Cannot create proposals
-    /// - If user has staked minimum amount -> Can create proposals
+    /// - Users must be DAO members AND meet proposal creation stake requirements
+    /// - Two separate stake requirements:
+    ///   1. min_stake_to_join: Required to become a DAO member
+    ///   2. min_stake_to_propose: Required to create proposals (configurable by admin)
+    /// - The membership::can_create_proposal() function enforces both requirements
+    /// - Admins can configure proposal stake to be higher than membership stake
     /// 
     /// AUTHORIZATION CHECK:
-    /// - Must be either: DAO admin OR DAO member
+    /// - Must be either: DAO admin OR member who meets proposal creation stake
     /// - DAO admins can always create proposals (regardless of stake)
-    /// - DAO members can create proposals (if they meet minimum stake)
-    /// - Non-members cannot create proposals (even with some stake)
+    /// - DAO members must meet proposal creation stake requirement
+    /// - Non-members cannot create proposals
     /// 
     /// PROCESS:
-    /// 1. Check if user is admin OR member (membership::is_member() includes stake validation)
+    /// 1. Check if user is admin OR can create proposals (includes membership + proposal stake validation)
     /// 2. If admin -> Allow proposal creation
-    /// 3. If member -> Allow proposal creation (minimum stake already verified)
+    /// 3. If member with sufficient proposal stake -> Allow proposal creation
     /// 4. If neither -> Reject with "not_authorized" error
     /// 
-    /// EXAMPLE FOR GORILLA MOVERZ:
-    /// - Minimum stake: 10 MOVE tokens
-    /// - User stakes 15 MOVE -> Becomes member -> Can create proposals
-    /// - User stakes 5 MOVE -> Not a member -> Cannot create proposals
+    /// EXAMPLE:
+    /// - min_stake_to_join: 10 MOVE tokens (to become member)
+    /// - min_stake_to_propose: 50 MOVE tokens (to create proposals)
+    /// - User stakes 15 MOVE -> Becomes member -> Cannot create proposals (needs 50)
+    /// - User stakes 60 MOVE -> Becomes member -> Can create proposals
     /// - Admin user -> Can create proposals (regardless of stake)
     public entry fun create_proposal(
         account: &signer,
@@ -172,16 +172,15 @@ module dao_addr::proposal {
         min_quorum_percent: u64
     ) acquires DaoProposals, ProposerRecord {
         let sender = signer::address_of(account);
-        // MINIMUM STAKE ENFORCEMENT: This line checks if user is admin OR member
-        // membership::is_member() internally validates minimum stake requirement
-        assert!(admin::is_admin(dao_addr, sender) || membership::is_member(dao_addr, sender), errors::not_authorized());
+        // MINIMUM STAKE ENFORCEMENT: Check if user is admin OR can create proposals
+        // For non-admins, this checks both membership AND proposal creation stake requirements
+        let is_admin = admin::is_admin(dao_addr, sender);
+        if (!is_admin) {
+            assert!(membership::can_create_proposal(dao_addr, sender), errors::not_authorized());
+        };
 
         let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         let now = timestamp::now_seconds();
-        
-        // RATE LIMITING: Check minimum stake requirement for proposal creation
-        let user_stake = staking::get_staked_balance(sender);
-        assert!(user_stake >= proposals.min_proposal_stake, errors::insufficient_stake());
         
         // PROPOSAL FEE: Charge fee to prevent spam
         coin::transfer<AptosCoin>(account, dao_addr, proposals.proposal_fee);
@@ -291,8 +290,8 @@ module dao_addr::proposal {
             i = i + 1;
         };
 
-        // Get voting power directly from staking balance to prevent race conditions
-        let weight = staking::get_staked_balance(sender);
+        // Get voting power directly from DAO-specific staking balance to prevent race conditions
+        let weight = staking::get_staker_amount(dao_addr, sender);
         assert!(weight > 0, errors::not_member());
         
         // Double-check via membership module for consistency

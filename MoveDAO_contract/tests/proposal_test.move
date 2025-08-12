@@ -57,13 +57,13 @@ module dao_addr::proposal_tests {
         coin::register<aptos_coin::AptosCoin>(&voter1);
         coin::register<aptos_coin::AptosCoin>(&voter2);
 
-        test_utils::mint_aptos(&proposer, 1000);
-        test_utils::mint_aptos(&voter1, 1000);
-        test_utils::mint_aptos(&voter2, 1000);
+        test_utils::mint_aptos(&proposer, 100000000000);  // 1000 APT
+        test_utils::mint_aptos(&voter1, 100000000000);
+        test_utils::mint_aptos(&voter2, 100000000000);
 
-        staking::stake(&proposer, dao_addr, 100);
-        staking::stake(&voter1, dao_addr, 100);
-        staking::stake(&voter2, dao_addr, 100);
+        staking::stake(&proposer, dao_addr, 200);  // Enough for proposal creation (30*5=150)
+        staking::stake(&voter1, dao_addr, 200);
+        staking::stake(&voter2, dao_addr, 200);
 
         membership::join(&proposer, dao_addr);
         membership::join(&voter1, dao_addr);
@@ -112,14 +112,18 @@ module dao_addr::proposal_tests {
         // the current logic passes it due to vote majority
         assert!(proposal::get_proposal_status(dao_addr, 0) == 2, EASSERTION_FAILED + 1); // status_passed
 
+        // Wait 24 hours to bypass rate limiting
+        timestamp::fast_forward_seconds(24 * 60 * 60 + 1);
+        let current_time = timestamp::now_seconds();
+
         // Create another proposal with 50% quorum that should pass
         proposal::create_proposal(
             &proposer,
             dao_addr,
             string::utf8(b"Lower Quorum Proposal"),
             string::utf8(b"Should pass quorum"),
-            9203,
-            16403,
+            current_time + 1,
+            current_time + 7200,
             50,
             50
         );
@@ -137,14 +141,18 @@ module dao_addr::proposal_tests {
         proposal::finalize_proposal(dao_admin, dao_addr, 1);
         assert!(proposal::get_proposal_status(dao_addr, 1) == 3, EASSERTION_FAILED + 2); // status_rejected
 
+        // Wait 24 hours to bypass rate limiting for third proposal
+        timestamp::fast_forward_seconds(24 * 60 * 60 + 1);
+        let current_time_3 = timestamp::now_seconds();
+
         // Create third proposal with 50% quorum that should pass
         proposal::create_proposal(
             &proposer,
             dao_addr,
             string::utf8(b"Passing Proposal"),
             string::utf8(b"Should pass"),
-            16404,
-            23604,
+            current_time_3 + 1,
+            current_time_3 + 7200,
             50,
             50
         );
@@ -364,14 +372,18 @@ module dao_addr::proposal_tests {
         proposal::cancel_proposal(&proposer, dao_addr, 0);
         assert!(proposal::get_proposal_status(dao_addr, 0) == 5, EASSERTION_FAILED + 9); // status_cancelled
 
+        // Wait 24 hours to bypass rate limiting
+        timestamp::fast_forward_seconds(24 * 60 * 60 + 1);
+        let current_time = timestamp::now_seconds();
+
         // Create another proposal and cancel during active voting
         proposal::create_proposal(
             &proposer,
             dao_addr,
             string::utf8(b"Active Cancellable"),
             string::utf8(b"Cancel during voting"),
-            1,
-            7200,
+            current_time + 1,
+            current_time + 7200,
             30,
             50
         );
@@ -403,13 +415,17 @@ module dao_addr::proposal_tests {
         );
         assert!(proposal::get_proposals_count(dao_addr) == 1, EASSERTION_FAILED + 12);
 
+        // Wait 24 hours to bypass rate limiting
+        timestamp::fast_forward_seconds(24 * 60 * 60 + 1);
+        let current_time = timestamp::now_seconds();
+
         proposal::create_proposal(
             &proposer,
             dao_addr,
             string::utf8(b"Second Proposal"),
             string::utf8(b"Second one"),
-            1,
-            7200,
+            current_time + 1,
+            current_time + 7200,
             30,
             50
         );

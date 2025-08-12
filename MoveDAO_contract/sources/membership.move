@@ -14,6 +14,7 @@ module dao_addr::membership {
 
     struct MembershipConfig has key {
         min_stake_to_join: u64,
+        min_stake_to_propose: u64,  // Minimum stake required to create proposals
     }
 
     struct MemberList has key {
@@ -38,11 +39,22 @@ module dao_addr::membership {
         updated_by: address
     }
 
+    #[event]
+    struct MinProposalStakeUpdated has drop, store {
+        old_min_proposal_stake: u64,
+        new_min_proposal_stake: u64,
+        updated_by: address
+    }
+
     public fun initialize(account: &signer) {
         initialize_with_min_stake(account, 1) // Default to 10 APT
     }
 
     public fun initialize_with_min_stake(account: &signer, min_stake_to_join: u64) {
+        initialize_with_stake_requirements(account, min_stake_to_join, min_stake_to_join * 5) // Default: 5x join stake for proposals
+    }
+
+    public fun initialize_with_stake_requirements(account: &signer, min_stake_to_join: u64, min_stake_to_propose: u64) {
         let addr = signer::address_of(account);
         if (!exists<MemberList>(addr)) {
             let member_list = MemberList {
@@ -52,6 +64,7 @@ module dao_addr::membership {
 
             let config = MembershipConfig {
                 min_stake_to_join,
+                min_stake_to_propose,
             };
 
             move_to(account, member_list);
@@ -91,8 +104,8 @@ module dao_addr::membership {
         
         // Get the DAO's minimum stake requirement
         let config = borrow_global<MembershipConfig>(dao_addr);
-        // Check user's current staked balance
-        let stake_amount = staking::get_staked_balance(addr);
+        // Check user's current staked balance in THIS DAO (not global)
+        let stake_amount = staking::get_staker_amount(dao_addr, addr);
         // Enforce minimum stake requirement - this is the key validation!
         assert!(stake_amount >= config.min_stake_to_join, errors::min_stake_required());
         
@@ -138,13 +151,13 @@ module dao_addr::membership {
         // CRITICAL: Verify member still meets minimum stake requirement (prevents membership gaming)
         // This is the key validation that enforces minimum stake for proposal creation
         let config = borrow_global<MembershipConfig>(dao_addr);
-        let current_stake = staking::get_staked_balance(member);
+        let current_stake = staking::get_staker_amount(dao_addr, member);
         current_stake >= config.min_stake_to_join
     }
 
     #[view]
-    public fun get_voting_power(_dao_addr: address, member: address): u64 {
-        staking::get_staked_balance(member)
+    public fun get_voting_power(dao_addr: address, member: address): u64 {
+        staking::get_staker_amount(dao_addr, member)
     }
 
     #[view]
@@ -177,7 +190,7 @@ module dao_addr::membership {
         assert!(simple_map::contains_key(&member_list.members, &member), errors::not_member());
         
         // Verify member no longer meets minimum stake requirement
-        let current_stake = staking::get_staked_balance(member);
+        let current_stake = staking::get_staker_amount(dao_addr, member);
         assert!(current_stake < config.min_stake_to_join, errors::min_stake_required());
         
         // Remove the member
@@ -211,9 +224,58 @@ module dao_addr::membership {
         });
     }
 
+    // Administrative function to update minimum proposal creation stake requirement
+    public entry fun update_min_proposal_stake(
+        admin: &signer,
+        dao_addr: address,
+        new_min_proposal_stake: u64
+    ) acquires MembershipConfig {
+        let admin_addr = signer::address_of(admin);
+        assert!(admin::is_admin(dao_addr, admin_addr), errors::not_admin());
+        
+        // Validate new minimum proposal stake (reasonable bounds)
+        assert!(new_min_proposal_stake > 0, errors::invalid_amount());
+        assert!(new_min_proposal_stake <= 100000, errors::invalid_amount()); // Max 1M tokens
+        
+        let config = borrow_global_mut<MembershipConfig>(dao_addr);
+        
+        // Ensure proposal stake is at least as much as join stake to maintain hierarchy
+        assert!(new_min_proposal_stake >= config.min_stake_to_join, errors::invalid_amount());
+        
+        let old_min_proposal_stake = config.min_stake_to_propose;
+        config.min_stake_to_propose = new_min_proposal_stake;
+        
+        event::emit(MinProposalStakeUpdated {
+            old_min_proposal_stake,
+            new_min_proposal_stake,
+            updated_by: admin_addr
+        });
+    }
+
     // View function to get current minimum stake requirement
     #[view]
     public fun get_min_stake(dao_addr: address): u64 acquires MembershipConfig {
         borrow_global<MembershipConfig>(dao_addr).min_stake_to_join
+    }
+
+    // View function to get current minimum proposal stake requirement
+    #[view]
+    public fun get_min_proposal_stake(dao_addr: address): u64 acquires MembershipConfig {
+        borrow_global<MembershipConfig>(dao_addr).min_stake_to_propose
+    }
+
+    // Check if a member can create proposals based on stake requirements
+    #[view]
+    public fun can_create_proposal(dao_addr: address, member: address): bool acquires MemberList, MembershipConfig {
+        if (!exists<MemberList>(dao_addr)) return false;
+        if (!exists<MembershipConfig>(dao_addr)) return false;
+        
+        // Must be a member first
+        if (!is_member(dao_addr, member)) return false;
+        
+        // Check if member meets proposal creation stake requirement
+        let config = borrow_global<MembershipConfig>(dao_addr);
+        let current_stake = staking::get_staker_amount(dao_addr, member);
+        current_stake >= config.min_stake_to_propose
     }
 }

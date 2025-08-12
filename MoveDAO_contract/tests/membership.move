@@ -219,6 +219,9 @@ module dao_addr::membership_tests {
         membership::join(&member, dao_addr);
         assert!(membership::get_voting_power(dao_addr, TEST_MEMBER) == 2000, 1);
 
+        // Wait 7 days to bypass unstaking time lock
+        timestamp::fast_forward_seconds(7 * 24 * 60 * 60 + 1);
+
         // Unstake some amount
         staking::unstake(&member, dao_addr, 500);
         assert!(membership::get_voting_power(dao_addr, TEST_MEMBER) == 1500, 2);

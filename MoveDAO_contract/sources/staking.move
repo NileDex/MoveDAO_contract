@@ -281,6 +281,7 @@ module dao_addr::staking {
         alice: &signer
     ) acquires StakedBalance, Vault, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
+        timestamp::set_time_has_started_for_testing(aptos_framework);
         test_init_module(creator);
         
         account::create_account_for_test(@0x3);
@@ -291,6 +292,9 @@ module dao_addr::staking {
         assert!(get_staked_balance(@0x3) == 500, 100);
         assert!(is_staker(@0x3), 101);
 
+        // Fast forward 7 days to bypass time lock
+        timestamp::update_global_time_for_test_secs(7 * 24 * 60 * 60 + 1);
+        
         unstake(alice, @dao_addr, 200);
         assert!(get_staked_balance(@0x3) == 300, 102);
 
@@ -306,6 +310,7 @@ module dao_addr::staking {
         alice: &signer
     ) acquires StakedBalance, Vault, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
+        timestamp::set_time_has_started_for_testing(aptos_framework);
         test_init_module(creator);
         
         account::create_account_for_test(@0x3);
@@ -313,6 +318,10 @@ module dao_addr::staking {
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
         
         stake(alice, @dao_addr, 500);
+        
+        // Fast forward 7 days to bypass time lock
+        timestamp::update_global_time_for_test_secs(7 * 24 * 60 * 60 + 1);
+        
         unstake(alice, @dao_addr, 400);
         unstake(alice, @dao_addr, 100);
         unstake(alice, @dao_addr, 100); // Should fail
@@ -328,6 +337,7 @@ module dao_addr::staking {
         alice: &signer
     ) acquires StakedBalance, Vault, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
+        timestamp::set_time_has_started_for_testing(aptos_framework);
         test_init_module(creator);
         
         account::create_account_for_test(@0x3);
@@ -421,6 +431,7 @@ module dao_addr::staking {
         creator: &signer
     ) acquires Vault, StakedBalance, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
+        timestamp::set_time_has_started_for_testing(aptos_framework);
         test_init_module(creator);
         
         let alice = account::create_account_for_test(@0x3);
