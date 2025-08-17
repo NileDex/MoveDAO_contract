@@ -126,7 +126,7 @@ module dao_addr::dao_core {
         input_validation::validate_council_size(vector::length(&initial_council));
         
         // Validate minimum stake (should be reasonable - between 1 and 10000 APT)
-        assert!(min_stake_to_join > 0, errors::invalid_amount());
+        assert!(min_stake_to_join >= 5, errors::invalid_amount());
         assert!(min_stake_to_join <= 10000, errors::invalid_amount());
 
         let council = council::init_council(account, initial_council, 1, 10);
@@ -222,7 +222,7 @@ module dao_addr::dao_core {
         input_validation::validate_address_list(&initial_council, input_validation::get_max_council_size());
         input_validation::validate_council_size(vector::length(&initial_council));
         
-        assert!(min_stake_to_join > 0, errors::invalid_amount());
+        assert!(min_stake_to_join >= 5, errors::invalid_amount());
         assert!(min_stake_to_join <= 10000, errors::invalid_amount());
         
         // Registry must be initialized first
@@ -499,12 +499,20 @@ module dao_addr::dao_core {
     }
 
     // Helper functions to get objects from DAOInfo
+    #[view]
     public fun get_council_object(dao_addr: address): Object<CouncilConfig> acquires DAOInfo {
         borrow_global<DAOInfo>(dao_addr).council
     }
 
+    #[view]
     public fun get_treasury_object(dao_addr: address): Object<Treasury> acquires DAOInfo {
         borrow_global<DAOInfo>(dao_addr).treasury
+    }
+
+    // Check if a DAO exists (has DAOInfo resource)
+    #[view]
+    public fun dao_exists(dao_addr: address): bool {
+        exists<DAOInfo>(dao_addr)
     }
 
     public entry fun claim_rewards(

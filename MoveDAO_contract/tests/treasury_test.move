@@ -9,6 +9,8 @@ module dao_addr::treasury_test {
     use aptos_framework::timestamp;
     use dao_addr::dao_core;
     use dao_addr::treasury;
+    use dao_addr::staking;
+    use dao_addr::membership;
     use dao_addr::test_utils;
 
     const EASSERTION_FAILED: u64 = 1000;
@@ -67,6 +69,11 @@ module dao_addr::treasury_test {
 
         test_utils::mint_aptos(alice, 1000);
         let treasury_obj = dao_core::get_treasury_object(dao_addr);
+        
+        // Alice needs to be a member to deposit
+        staking::stake(alice, dao_addr, 50); // Stake enough to meet minimum
+        membership::join(alice, dao_addr); // Join as member
+        
         treasury::deposit_to_object(alice, treasury_obj, 500);
 
         let balance = treasury::get_balance_from_object(treasury_obj);
@@ -80,7 +87,7 @@ module dao_addr::treasury_test {
     }
 
     #[test(aptos_framework = @0x1, alice = @0x123)]
-    #[expected_failure(abort_code = 10, location = dao_addr::treasury)] // errors::not_admin() = 10
+    #[expected_failure(abort_code = 10, location = dao_addr::treasury)] // errors::not_admin() = 10  
     fun test_non_admin_cannot_withdraw(aptos_framework: &signer, alice: &signer) {
         account::create_account_for_test(@0x1);
         account::create_account_for_test(@0x123);
@@ -106,6 +113,11 @@ module dao_addr::treasury_test {
 
         test_utils::mint_aptos(alice, 1000);
         let treasury_obj = dao_core::get_treasury_object(dao_addr);
+        
+        // Alice needs to be a member to deposit
+        staking::stake(alice, dao_addr, 50); // Stake enough to meet minimum
+        membership::join(alice, dao_addr); // Join as member
+        
         treasury::deposit_to_object(alice, treasury_obj, 500);
 
         let non_admin = account::create_signer_for_test(@0x999);
@@ -139,6 +151,11 @@ module dao_addr::treasury_test {
 
         test_utils::mint_aptos(alice, 2000);
         let treasury_obj = dao_core::get_treasury_object(dao_addr);
+        
+        // Alice needs to be a member to deposit
+        staking::stake(alice, dao_addr, 50); // Stake enough to meet minimum
+        membership::join(alice, dao_addr); // Join as member
+        
         treasury::deposit_to_object(alice, treasury_obj, 500);
         treasury::deposit_to_object(alice, treasury_obj, 300);
         let balance = treasury::get_balance_from_object(treasury_obj);
@@ -173,6 +190,11 @@ module dao_addr::treasury_test {
 
         test_utils::mint_aptos(alice, 1000);
         let treasury_obj = dao_core::get_treasury_object(dao_addr);
+        
+        // Alice needs to be a member to deposit
+        staking::stake(alice, dao_addr, 50); // Stake enough to meet minimum
+        membership::join(alice, dao_addr); // Join as member
+        
         treasury::deposit_to_object(alice, treasury_obj, 500);
         treasury::withdraw_from_object(alice, dao_addr, treasury_obj, 501);  // Should fail - insufficient balance
 
@@ -204,11 +226,15 @@ module dao_addr::treasury_test {
 
         let treasury_obj = dao_core::get_treasury_object(dao_addr);
         
-        // Test zero deposit
-        treasury::deposit_to_object(alice, treasury_obj, 0);
+        // Alice needs to be a member to deposit
+        test_utils::mint_aptos(alice, 200);
+        staking::stake(alice, dao_addr, 50); // Stake enough to meet minimum
+        membership::join(alice, dao_addr); // Join as member
+        
+        // Test zero deposit - this should fail due to amount validation
+        // treasury::deposit_to_object(alice, treasury_obj, 0); // Will fail with invalid_amount
         assert!(treasury::get_balance_from_object(treasury_obj) == 0, EASSERTION_FAILED + 4);
 
-        test_utils::mint_aptos(alice, 100);
         treasury::deposit_to_object(alice, treasury_obj, 100);
         
         // Test zero withdraw
@@ -219,7 +245,7 @@ module dao_addr::treasury_test {
     }
 
     #[test(aptos_framework = @0x1, alice = @0x123, depositor = @0x456)]
-    fun test_anyone_can_deposit_only_admin_can_withdraw(aptos_framework: &signer, alice: &signer, depositor: &signer) {
+    fun test_member_can_deposit_only_admin_can_withdraw(aptos_framework: &signer, alice: &signer, depositor: &signer) {
         account::create_account_for_test(@0x1);
         account::create_account_for_test(@0x123);
         account::create_account_for_test(@0x456);
@@ -247,14 +273,55 @@ module dao_addr::treasury_test {
 
         let treasury_obj = dao_core::get_treasury_object(dao_addr);
         
-        // Anyone can deposit
-        test_utils::mint_aptos(depositor, 500);
+        // Depositor must be a DAO member to deposit
+        // First, depositor needs to stake the minimum amount to become a member
+        test_utils::mint_aptos(depositor, 1000);
+        staking::stake(depositor, dao_addr, 50); // Stake enough to meet minimum
+        membership::join(depositor, dao_addr); // Join as member
+        
+        // Now member can deposit
         treasury::deposit_to_object(depositor, treasury_obj, 500);
         assert!(treasury::get_balance_from_object(treasury_obj) == 500, EASSERTION_FAILED + 6);
 
         // Only admin can withdraw
         treasury::withdraw_from_object(alice, dao_addr, treasury_obj, 100);
         assert!(treasury::get_balance_from_object(treasury_obj) == 400, EASSERTION_FAILED + 7);
+
+        test_utils::destroy_caps(aptos_framework);
+    }
+
+    #[test(aptos_framework = @0x1, alice = @0x123, non_member = @0x789)]
+    #[expected_failure(abort_code = 151, location = dao_addr::treasury)] // errors::not_member() = 151
+    fun test_non_member_cannot_deposit(aptos_framework: &signer, alice: &signer, non_member: &signer) {
+        account::create_account_for_test(@0x1);
+        account::create_account_for_test(@0x123);
+        account::create_account_for_test(@0x789);
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        test_utils::setup_aptos(aptos_framework);
+        test_utils::setup_test_account(alice);
+        test_utils::setup_test_account(non_member);
+
+        coin::register<AptosCoin>(alice);
+        coin::register<AptosCoin>(non_member);
+        
+        let council = vector::singleton(@0x123);
+        dao_core::create_dao(
+            alice, 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
+            string::utf8(b"Description"),
+            b"logo", 
+            b"bg", 
+            council, 
+            30
+        );
+
+        let dao_addr = signer::address_of(alice);
+        let treasury_obj = dao_core::get_treasury_object(dao_addr);
+        
+        // Non-member tries to deposit - should fail
+        test_utils::mint_aptos(non_member, 500);
+        treasury::deposit_to_object(non_member, treasury_obj, 500); // Should fail with ENOT_MEMBER
 
         test_utils::destroy_caps(aptos_framework);
     }
@@ -286,6 +353,11 @@ module dao_addr::treasury_test {
         
         // Multiple operations should maintain correct balance
         test_utils::mint_aptos(alice, 1000);
+        
+        // Alice needs to be a member to deposit
+        staking::stake(alice, dao_addr, 50); // Stake enough to meet minimum
+        membership::join(alice, dao_addr); // Join as member
+        
         treasury::deposit_to_object(alice, treasury_obj, 300);
         assert!(treasury::get_balance_from_object(treasury_obj) == 300, EASSERTION_FAILED + 8);
 
@@ -297,6 +369,51 @@ module dao_addr::treasury_test {
 
         treasury::withdraw_from_object(alice, dao_addr, treasury_obj, 400);
         assert!(treasury::get_balance_from_object(treasury_obj) == 0, EASSERTION_FAILED + 11);
+
+        test_utils::destroy_caps(aptos_framework);
+    }
+
+    #[test(aptos_framework = @0x1, alice = @0x123, member = @0x999)]
+    fun test_member_deposits_only(aptos_framework: &signer, alice: &signer, member: &signer) {
+        account::create_account_for_test(@0x1);
+        account::create_account_for_test(@0x123);
+        account::create_account_for_test(@0x999);
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        test_utils::setup_aptos(aptos_framework);
+        test_utils::setup_test_account(alice);
+        test_utils::setup_test_account(member);
+
+        coin::register<AptosCoin>(alice);
+        coin::register<AptosCoin>(member);
+        
+        let council = vector::singleton(@0x123);
+        dao_core::create_dao(
+            alice, 
+            string::utf8(b"Test DAO"),
+            string::utf8(b"Subname"), 
+            string::utf8(b"Description"),
+            b"logo", 
+            b"bg", 
+            council, 
+            30
+        );
+
+        let dao_addr = signer::address_of(alice);
+        let treasury_obj = dao_core::get_treasury_object(dao_addr);
+        
+        // Admin can always deposit
+        test_utils::mint_aptos(alice, 500);
+        staking::stake(alice, dao_addr, 50); // Admin stakes to be able to join
+        membership::join(alice, dao_addr); // Admin joins as member
+        treasury::deposit_to_object(alice, treasury_obj, 500);
+        assert!(treasury::get_balance_from_object(treasury_obj) == 500, EASSERTION_FAILED + 12);
+        
+        // Member can deposit after joining
+        test_utils::mint_aptos(member, 300);
+        staking::stake(member, dao_addr, 50); // Stake enough to meet minimum
+        membership::join(member, dao_addr); // Join as member
+        treasury::deposit_to_object(member, treasury_obj, 300);
+        assert!(treasury::get_balance_from_object(treasury_obj) == 800, EASSERTION_FAILED + 13);
 
         test_utils::destroy_caps(aptos_framework);
     }

@@ -51,7 +51,7 @@ module dao_addr::membership {
     }
 
     public fun initialize_with_min_stake(account: &signer, min_stake_to_join: u64) {
-        initialize_with_stake_requirements(account, min_stake_to_join, min_stake_to_join * 5) // Default: 5x join stake for proposals
+        initialize_with_stake_requirements(account, min_stake_to_join, min_stake_to_join) // Default: same as join stake, admin can customize later
     }
 
     public fun initialize_with_stake_requirements(account: &signer, min_stake_to_join: u64, min_stake_to_propose: u64) {
@@ -144,6 +144,9 @@ module dao_addr::membership {
         if (!exists<MemberList>(dao_addr)) return false;
         if (!exists<MembershipConfig>(dao_addr)) return false;
         
+        // Admin bypass: Admins are always considered members regardless of stake or membership status
+        if (admin::is_admin(dao_addr, member)) return true;
+        
         // Check if member is in the list (has joined the DAO)
         let is_in_list = simple_map::contains_key(&borrow_global<MemberList>(dao_addr).members, &member);
         if (!is_in_list) return false;
@@ -156,7 +159,21 @@ module dao_addr::membership {
     }
 
     #[view]
-    public fun get_voting_power(dao_addr: address, member: address): u64 {
+    public fun get_voting_power(dao_addr: address, member: address): u64 acquires MembershipConfig {
+        // Admin bypass: Give admins voting power equal to their stake, or minimum proposal stake if they have no stake
+        if (admin::is_admin(dao_addr, member)) {
+            let staked_amount = staking::get_staker_amount(dao_addr, member);
+            if (staked_amount > 0) {
+                return staked_amount
+            } else {
+                // If admin has no stake, give them voting power equal to minimum proposal stake requirement
+                if (exists<MembershipConfig>(dao_addr)) {
+                    return borrow_global<MembershipConfig>(dao_addr).min_stake_to_propose
+                } else {
+                    return 1  // Fallback minimum voting power
+                }
+            }
+        };
         staking::get_staker_amount(dao_addr, member)
     }
 
@@ -252,6 +269,26 @@ module dao_addr::membership {
         });
     }
 
+    // Convenient function for admins to set proposal stake as a multiplier of join stake
+    public entry fun set_proposal_stake_multiplier(
+        admin: &signer,
+        dao_addr: address,
+        multiplier: u64
+    ) acquires MembershipConfig {
+        let admin_addr = signer::address_of(admin);
+        assert!(admin::is_admin(dao_addr, admin_addr), errors::not_admin());
+        
+        // Validate multiplier (1x to 100x)
+        assert!(multiplier >= 1, errors::invalid_amount());
+        assert!(multiplier <= 100, errors::invalid_amount());
+        
+        let config = borrow_global<MembershipConfig>(dao_addr);
+        let new_min_proposal_stake = config.min_stake_to_join * multiplier;
+        
+        // Use the existing update function to ensure all validations
+        update_min_proposal_stake(admin, dao_addr, new_min_proposal_stake);
+    }
+
     // View function to get current minimum stake requirement
     #[view]
     public fun get_min_stake(dao_addr: address): u64 acquires MembershipConfig {
@@ -264,11 +301,22 @@ module dao_addr::membership {
         borrow_global<MembershipConfig>(dao_addr).min_stake_to_propose
     }
 
+    // View function to get the current proposal stake multiplier
+    #[view]
+    public fun get_proposal_stake_multiplier(dao_addr: address): u64 acquires MembershipConfig {
+        let config = borrow_global<MembershipConfig>(dao_addr);
+        if (config.min_stake_to_join == 0) return 1;
+        config.min_stake_to_propose / config.min_stake_to_join
+    }
+
     // Check if a member can create proposals based on stake requirements
     #[view]
     public fun can_create_proposal(dao_addr: address, member: address): bool acquires MemberList, MembershipConfig {
         if (!exists<MemberList>(dao_addr)) return false;
         if (!exists<MembershipConfig>(dao_addr)) return false;
+        
+        // Admin bypass: Admins can always create proposals regardless of stake requirements
+        if (admin::is_admin(dao_addr, member)) return true;
         
         // Must be a member first
         if (!is_member(dao_addr, member)) return false;

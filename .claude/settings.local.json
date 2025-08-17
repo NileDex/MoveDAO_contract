@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(cargo:*)",
+      "Bash(npm run test:*)",
+      "Bash(aptos move compile:*)",
+      "Bash(move build)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

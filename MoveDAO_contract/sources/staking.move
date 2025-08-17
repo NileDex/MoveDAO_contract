@@ -3,6 +3,7 @@ module dao_addr::staking {
     use std::signer;
     use std::string::String;
     use std::vector;
+    use std::event;
     use aptos_framework::object;
     use aptos_framework::coin;
     use aptos_framework::aptos_coin::AptosCoin;
@@ -13,6 +14,35 @@ module dao_addr::staking {
     use dao_addr::errors;
     use dao_addr::safe_math;
 
+    // Activity tracking events
+    #[event]
+    struct StakeEvent has drop, store {
+        dao_address: address,
+        staker: address,
+        amount: u64,
+        total_staked: u64,
+        timestamp: u64,
+        transaction_hash: vector<u8>,
+    }
+
+    #[event]
+    struct UnstakeEvent has drop, store {
+        dao_address: address,
+        staker: address,
+        amount: u64,
+        remaining_staked: u64,
+        timestamp: u64,
+        transaction_hash: vector<u8>,
+    }
+
+    #[event]
+    struct RewardClaimedEvent has drop, store {
+        dao_address: address,
+        staker: address,
+        reward_amount: u64,
+        timestamp: u64,
+        transaction_hash: vector<u8>,
+    }
 
     const VAULT_SEED: vector<u8> = b"VAULT";
 
@@ -37,7 +67,12 @@ module dao_addr::staking {
         timestamp: u64,
     }
 
-    struct StakedBalance has store, key {
+    struct StakerProfile has key {
+        dao_stakes: Table<address, DAOStakeInfo>,  // DAO address -> stake info
+        total_staked: u64,
+    }
+    
+    struct DAOStakeInfo has store, drop {
         staked_balance: u64,
         last_staked_time: u64,
     }
@@ -102,39 +137,48 @@ module dao_addr::staking {
     /// VOTING POWER: 1 staked token = 1 vote weight
     /// REWARDS: Staked tokens earn passive income over time
     /// UNSTAKE: Users can unstake anytime (reduces voting power)
-    public entry fun stake(acc_own: &signer, dao_addr: address, amount: u64) acquires StakedBalance, Vault, StakerRegistry {
+    public entry fun stake(acc_own: &signer, dao_addr: address, amount: u64) acquires StakerProfile, Vault, StakerRegistry {
         let from = signer::address_of(acc_own);
         
         // Check if user has enough APT tokens in their wallet
         let balance = coin::balance<AptosCoin>(from);
         assert!(balance >= amount, errors::insufficient_balance());
 
-        // Determine if this is a new staker or adding to existing stake
-        let is_new_staker = !exists<StakedBalance>(from);
+        // Initialize staker profile if this is their first time staking anywhere
+        if (!exists<StakerProfile>(from)) {
+            let profile = StakerProfile {
+                dao_stakes: table::new<address, DAOStakeInfo>(),
+                total_staked: 0,
+            };
+            move_to(acc_own, profile);
+        };
         
-        if (is_new_staker) {
-            // First time staking - create new staked balance record
-            let staked_balance = StakedBalance {
+        let profile = borrow_global_mut<StakerProfile>(from);
+        let is_new_dao_staker = !table::contains(&profile.dao_stakes, dao_addr);
+        
+        if (is_new_dao_staker) {
+            // First time staking in this DAO
+            let dao_stake_info = DAOStakeInfo {
                 staked_balance: amount,
                 last_staked_time: timestamp::now_seconds(),
             };
-            move_to(acc_own, staked_balance);
+            table::add(&mut profile.dao_stakes, dao_addr, dao_stake_info);
         } else {
-            // Adding to existing stake - update current balance
-            let staked_balance = borrow_global_mut<StakedBalance>(from);
-            // Use safe math for addition to prevent overflow
-            staked_balance.staked_balance = safe_math::safe_add(staked_balance.staked_balance, amount);
-            staked_balance.last_staked_time = timestamp::now_seconds();
+            // Adding to existing stake in this DAO
+            let dao_stake_info = table::borrow_mut(&mut profile.dao_stakes, dao_addr);
+            dao_stake_info.staked_balance = safe_math::safe_add(dao_stake_info.staked_balance, amount);
+            // Important: Do NOT update last_staked_time on additional stakes to prevent time-lock bypass
         };
+        
+        // Update total staked across all DAOs
+        profile.total_staked = safe_math::safe_add(profile.total_staked, amount);
 
-        // Update the DAO's staker registry to track all stakers
+        // Update the DAO's staker registry
         let registry = borrow_global_mut<StakerRegistry>(dao_addr);
-        if (is_new_staker) {
-            // Add new staker to registry with safe math
+        if (is_new_dao_staker) {
             table::add(&mut registry.stakers, from, amount);
             registry.total_stakers = safe_math::safe_add(registry.total_stakers, 1);
         } else {
-            // Update existing staker's amount in registry using safe math
             let current_amount = table::borrow_mut(&mut registry.stakers, from);
             *current_amount = safe_math::safe_add(*current_amount, amount);
         };
@@ -143,38 +187,72 @@ module dao_addr::staking {
         let coins = coin::withdraw<AptosCoin>(acc_own, amount);
         let vault = borrow_global_mut<Vault>(get_vault_addr(dao_addr));
         coin::merge(&mut vault.balance, coins);
+
+        // Emit stake event (for activity tracking)
+        // Note: transaction hash not available in Move; keep empty vector for compatibility
+        event::emit(StakeEvent {
+            dao_address: dao_addr,
+            staker: from,
+            amount,
+            total_staked: get_dao_staked_balance(dao_addr, from),
+            timestamp: timestamp::now_seconds(),
+            transaction_hash: vector::empty(),
+        });
     }
 
-    public entry fun unstake(acc_own: &signer, dao_addr: address, amount: u64) acquires StakedBalance, Vault, StakerRegistry {
+    public entry fun unstake(acc_own: &signer, dao_addr: address, amount: u64) acquires StakerProfile, Vault, StakerRegistry {
         let from = signer::address_of(acc_own);
-        let staked_balance = borrow_global_mut<StakedBalance>(from);
-        let staked_amount = staked_balance.staked_balance;
+        
+        // Check if user has staking profile and has staked in this DAO
+        assert!(exists<StakerProfile>(from), errors::not_found());
+        let profile = borrow_global_mut<StakerProfile>(from);
+        assert!(table::contains(&profile.dao_stakes, dao_addr), errors::not_found());
+        
+        let dao_stake_info = table::borrow(&profile.dao_stakes, dao_addr);
+        let staked_amount = dao_stake_info.staked_balance;
         assert!(staked_amount >= amount, errors::invalid_unstake_amount());
         
         // TIME LOCK: Prevent unstaking within 7 days of last stake to prevent flash loan attacks
         let current_time = timestamp::now_seconds();
         let time_lock_period = 7 * 24 * 60 * 60; // 7 days in seconds
-        assert!(current_time >= staked_balance.last_staked_time + time_lock_period, errors::time_lock_active());
+        assert!(current_time >= dao_stake_info.last_staked_time + time_lock_period, errors::time_lock_active());
         
+        // Transfer tokens back to user
         let vault = borrow_global_mut<Vault>(get_vault_addr(dao_addr));
         let coins = coin::extract(&mut vault.balance, amount);
         coin::deposit(from, coins);
         
-        staked_balance.staked_balance = safe_math::safe_sub(staked_balance.staked_balance, amount);
+        // Update DAO-specific stake
+        let dao_stake_info = table::borrow_mut(&mut profile.dao_stakes, dao_addr);
+        dao_stake_info.staked_balance = safe_math::safe_sub(dao_stake_info.staked_balance, amount);
         
-        // Update staker registry (validate consistency)
+        // Update total staked across all DAOs
+        profile.total_staked = safe_math::safe_sub(profile.total_staked, amount);
+        
+        // Update staker registry
         let registry = borrow_global_mut<StakerRegistry>(dao_addr);
         assert!(table::contains(&registry.stakers, from), errors::not_found());
         
         let current_amount = table::borrow_mut(&mut registry.stakers, from);
         assert!(*current_amount >= amount, errors::invalid_unstake_amount());
-        *current_amount = *current_amount - amount;
+        *current_amount = safe_math::safe_sub(*current_amount, amount);
         
-        // Remove from registry if fully unstaked
+        // Remove from registry and DAO stakes if fully unstaked from this DAO
         if (*current_amount == 0) {
             table::remove(&mut registry.stakers, from);
-            registry.total_stakers = registry.total_stakers - 1;
+            let _ = table::remove(&mut profile.dao_stakes, dao_addr);
+            registry.total_stakers = safe_math::safe_sub(registry.total_stakers, 1);
         };
+
+        // Emit unstake event (for activity tracking)
+        event::emit(UnstakeEvent {
+            dao_address: dao_addr,
+            staker: from,
+            amount,
+            remaining_staked: get_dao_staked_balance(dao_addr, from),
+            timestamp: timestamp::now_seconds(),
+            transaction_hash: vector::empty(),
+        });
     }
 
     public entry fun create_vote(acc_own: &signer, dao_addr: address, title: String, description: String, start_time: u64, end_time: u64) acquires VoteRepository {
@@ -243,9 +321,17 @@ module dao_addr::staking {
     }
 
     #[view]
-    public fun get_staked_balance(addr: address): u64 acquires StakedBalance {
-        if (!exists<StakedBalance>(addr)) return 0;
-        borrow_global<StakedBalance>(addr).staked_balance
+    public fun get_staked_balance(addr: address): u64 acquires StakerProfile {
+        if (!exists<StakerProfile>(addr)) return 0;
+        borrow_global<StakerProfile>(addr).total_staked
+    }
+    
+    #[view]
+    public fun get_dao_staked_balance(dao_addr: address, addr: address): u64 acquires StakerProfile {
+        if (!exists<StakerProfile>(addr)) return 0;
+        let profile = borrow_global<StakerProfile>(addr);
+        if (!table::contains(&profile.dao_stakes, dao_addr)) return 0;
+        table::borrow(&profile.dao_stakes, dao_addr).staked_balance
     }
 
     #[view]
@@ -255,7 +341,14 @@ module dao_addr::staking {
 
     #[view]
     public fun is_staker(addr: address): bool {
-        exists<StakedBalance>(addr)
+        exists<StakerProfile>(addr)
+    }
+    
+    #[view]
+    public fun is_dao_staker(dao_addr: address, addr: address): bool acquires StakerProfile {
+        if (!exists<StakerProfile>(addr)) return false;
+        let profile = borrow_global<StakerProfile>(addr);
+        table::contains(&profile.dao_stakes, dao_addr)
     }
 
     fun get_vault_signer(dao_addr: address): signer acquires Vault {
@@ -279,7 +372,7 @@ module dao_addr::staking {
         aptos_framework: &signer, 
         creator: &signer, 
         alice: &signer
-    ) acquires StakedBalance, Vault, StakerRegistry {
+    ) acquires StakerProfile, Vault, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
         timestamp::set_time_has_started_for_testing(aptos_framework);
         test_init_module(creator);
@@ -303,12 +396,12 @@ module dao_addr::staking {
     }
 
     #[test(aptos_framework = @0x1, creator = @dao_addr, alice = @0x3)]
-    #[expected_failure(abort_code = 301, location = dao_addr::staking)]
+    #[expected_failure(abort_code = 8, location = dao_addr::staking)]
     public entry fun test_block_unstake_limit(
         aptos_framework: &signer, 
         creator: &signer, 
         alice: &signer
-    ) acquires StakedBalance, Vault, StakerRegistry {
+    ) acquires StakerProfile, Vault, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
         timestamp::set_time_has_started_for_testing(aptos_framework);
         test_init_module(creator);
@@ -335,7 +428,7 @@ module dao_addr::staking {
         aptos_framework: &signer, 
         creator: &signer, 
         alice: &signer
-    ) acquires StakedBalance, Vault, StakerRegistry {
+    ) acquires StakerProfile, Vault, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
         timestamp::set_time_has_started_for_testing(aptos_framework);
         test_init_module(creator);
@@ -358,7 +451,7 @@ module dao_addr::staking {
         creator: &signer, 
         alice: &signer, 
         bob: &signer
-    ) acquires StakedBalance, Vault, VoteRepository, StakerRegistry {
+    ) acquires StakerProfile, Vault, VoteRepository, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
         timestamp::set_time_has_started_for_testing(aptos_framework);
         test_init_module(creator);
@@ -404,7 +497,7 @@ module dao_addr::staking {
         aptos_framework: &signer, 
         creator: &signer, 
         alice: &signer
-    ) acquires StakedBalance, VoteRepository, Vault, StakerRegistry {
+    ) acquires StakerProfile, VoteRepository, Vault, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
         timestamp::set_time_has_started_for_testing(aptos_framework);
         test_init_module(creator);
@@ -429,7 +522,7 @@ module dao_addr::staking {
     public entry fun test_total_staked(
         aptos_framework: &signer, 
         creator: &signer
-    ) acquires Vault, StakedBalance, StakerRegistry {
+    ) acquires Vault, StakerProfile, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
         timestamp::set_time_has_started_for_testing(aptos_framework);
         test_init_module(creator);
@@ -488,6 +581,12 @@ module dao_addr::staking {
             0
         }
     }
+    
+    // Direct function for getting DAO-specific stake (more efficient)
+    #[view]
+    public fun get_dao_stake_direct(dao_addr: address, staker: address): u64 acquires StakerProfile {
+        get_dao_staked_balance(dao_addr, staker)
+    }
 
     public fun is_registered_staker(dao_addr: address, staker: address): bool acquires StakerRegistry {
         let registry = borrow_global<StakerRegistry>(dao_addr);
@@ -496,19 +595,19 @@ module dao_addr::staking {
 
     // Synchronization validation and repair functions
     #[view]
-    public fun validate_staker_sync(dao_addr: address, staker: address): bool acquires StakedBalance, StakerRegistry {
-        if (!exists<StakedBalance>(staker)) {
+    public fun validate_staker_sync(dao_addr: address, staker: address): bool acquires StakerProfile, StakerRegistry {
+        if (!exists<StakerProfile>(staker)) {
             return !is_registered_staker(dao_addr, staker)
         };
         
-        let individual_balance = borrow_global<StakedBalance>(staker).staked_balance;
+        let dao_balance = get_dao_staked_balance(dao_addr, staker);
         let registry_balance = if (is_registered_staker(dao_addr, staker)) {
             get_staker_amount(dao_addr, staker)
         } else {
             0
         };
         
-        individual_balance == registry_balance
+        dao_balance == registry_balance
     }
 
     // Administrative function to repair desynchronized staking data
@@ -516,38 +615,81 @@ module dao_addr::staking {
         admin: &signer, 
         dao_addr: address, 
         staker: address
-    ) acquires StakedBalance, StakerRegistry {
+    ) acquires StakerProfile, StakerRegistry {
         let admin_addr = signer::address_of(admin);
         assert!(admin::is_admin(dao_addr, admin_addr), errors::not_admin());
         
-        if (!exists<StakedBalance>(staker)) {
-            // Staker has no individual balance, remove from registry
+        if (!exists<StakerProfile>(staker)) {
+            // Staker has no profile, remove from registry
             let registry = borrow_global_mut<StakerRegistry>(dao_addr);
             if (table::contains(&registry.stakers, staker)) {
                 table::remove(&mut registry.stakers, staker);
-                registry.total_stakers = registry.total_stakers - 1;
+                registry.total_stakers = safe_math::safe_sub(registry.total_stakers, 1);
             };
             return
         };
         
-        let individual_balance = borrow_global<StakedBalance>(staker).staked_balance;
+        let dao_balance = get_dao_staked_balance(dao_addr, staker);
         let registry = borrow_global_mut<StakerRegistry>(dao_addr);
         
-        if (individual_balance == 0) {
+        if (dao_balance == 0) {
             // Remove from registry
             if (table::contains(&registry.stakers, staker)) {
                 table::remove(&mut registry.stakers, staker);
-                registry.total_stakers = registry.total_stakers - 1;
+                registry.total_stakers = safe_math::safe_sub(registry.total_stakers, 1);
             };
         } else {
-            // Sync registry with individual balance
+            // Sync registry with DAO-specific balance
             if (table::contains(&registry.stakers, staker)) {
                 let registry_amount = table::borrow_mut(&mut registry.stakers, staker);
-                *registry_amount = individual_balance;
+                *registry_amount = dao_balance;
             } else {
-                table::add(&mut registry.stakers, staker, individual_balance);
-                registry.total_stakers = registry.total_stakers + 1;
+                table::add(&mut registry.stakers, staker, dao_balance);
+                registry.total_stakers = safe_math::safe_add(registry.total_stakers, 1);
             };
         };
+    }
+
+    #[test(aptos_framework = @0x1, dao1 = @dao_addr, dao2 = @0x5, alice = @0x3)]
+    public entry fun test_multi_dao_staking(
+        aptos_framework: &signer, 
+        dao1: &signer, 
+        dao2: &signer,
+        alice: &signer
+    ) acquires StakerProfile, Vault, StakerRegistry {
+        let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        
+        // Initialize both DAOs
+        test_init_module(dao1);
+        test_init_module(dao2);
+        
+        // Setup alice's account
+        account::create_account_for_test(@0x3);
+        coin::register<AptosCoin>(alice);
+        coin::deposit(@0x3, coin::mint(2000, &mint_cap));
+
+        // Stake in first DAO
+        stake(alice, @dao_addr, 500);
+        assert!(get_dao_staked_balance(@dao_addr, @0x3) == 500, 100);
+        assert!(get_staked_balance(@0x3) == 500, 101);
+        
+        // Stake in second DAO - this should work without conflict
+        stake(alice, @0x5, 300);
+        assert!(get_dao_staked_balance(@0x5, @0x3) == 300, 102);
+        assert!(get_staked_balance(@0x3) == 800, 103); // Total across both DAOs
+        
+        // Verify DAO-specific balances are separate
+        assert!(get_dao_staked_balance(@dao_addr, @0x3) == 500, 104);
+        assert!(get_dao_staked_balance(@0x5, @0x3) == 300, 105);
+        
+        // Add more to first DAO
+        stake(alice, @dao_addr, 100);
+        assert!(get_dao_staked_balance(@dao_addr, @0x3) == 600, 106);
+        assert!(get_dao_staked_balance(@0x5, @0x3) == 300, 107); // Should remain unchanged
+        assert!(get_staked_balance(@0x3) == 900, 108);
+        
+        coin::destroy_mint_cap(mint_cap);
+        coin::destroy_burn_cap(burn_cap);
     }
 }

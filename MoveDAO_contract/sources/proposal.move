@@ -13,6 +13,7 @@ module dao_addr::proposal {
     use dao_addr::rewards;
     use dao_addr::errors;
     use dao_addr::safe_math;
+    use dao_addr::council;
 
     // Proposal Status Enum
     struct ProposalStatus has copy, drop, store {
@@ -56,12 +57,52 @@ module dao_addr::proposal {
     // Get vote type value
     public fun get_vote_type_value(vote_type: &VoteType): u8 { vote_type.value }
 
+    // Role constants for identification
+    const ROLE_MEMBER: u8 = 1;
+    const ROLE_ADMIN: u8 = 2;
+    const ROLE_SUPER_ADMIN: u8 = 3;
+
+    // Helper function to get user role at proposal creation/voting time
+    fun get_user_role(dao_addr: address, user: address): u8 {
+        if (admin::is_admin(dao_addr, user)) {
+            let admin_role = admin::get_admin_role(dao_addr, user);
+            if (admin_role == admin::role_super_admin()) {
+                ROLE_SUPER_ADMIN
+            } else {
+                ROLE_ADMIN
+            }
+        } else if (membership::is_member(dao_addr, user)) {
+            ROLE_MEMBER
+        } else {
+            0 // No role
+        }
+    }
+
+    // Helper function to create member snapshot for proposal
+    fun create_member_snapshot(dao_addr: address): vector<address> {
+        let members = vector::empty<address>();
+        let all_admins = admin::get_admins(dao_addr);
+        let i = 0;
+        
+        // Add all admins first
+        while (i < vector::length(&all_admins)) {
+            let admin_addr = *vector::borrow(&all_admins, i);
+            vector::push_back(&mut members, admin_addr);
+            i = i + 1;
+        };
+        
+        // Note: For a complete implementation, you'd need a way to get all members
+        // This would require adding a get_all_members function to the membership module
+        members
+    }
+
 
     struct Proposal has store, copy, drop {
         id: u64,
         title: string::String,
         description: string::String,
         proposer: address,
+        proposer_role: u8,               // Role of proposer when created (admin/member)
         status: ProposalStatus,
         votes: vector<Vote>,
         yes_votes: u64,
@@ -71,11 +112,15 @@ module dao_addr::proposal {
         voting_start: u64,
         voting_end: u64,
         execution_window: u64,
-        min_quorum_percent: u64
+        min_quorum_percent: u64,
+        approved_by_admin: bool,         // Whether admin has approved activation
+        finalized_by_admin: bool,        // Whether admin has finalized
+        constant_member_list: vector<address>  // Snapshot of eligible voters
     }
 
     struct Vote has store, copy, drop {
         voter: address,
+        voter_role: u8,                  // Role of voter when voted (admin/member)
         vote_type: VoteType,
         weight: u64,
         voted_at: u64
@@ -96,6 +141,7 @@ module dao_addr::proposal {
     struct ProposalCreatedEvent has drop, store {
         proposal_id: u64,
         proposer: address,
+        proposer_role: u8,
         title: string::String,
     }
 
@@ -111,8 +157,24 @@ module dao_addr::proposal {
     struct VoteCastEvent has drop, store {
         proposal_id: u64,
         voter: address,
+        voter_role: u8,
         vote_type: u8,
         weight: u64,
+    }
+
+    #[event]
+    struct ProposalActivatedEvent has drop, store {
+        proposal_id: u64,
+        activated_by: address,
+        admin_role: u8,
+    }
+
+    #[event]
+    struct ProposalFinalizedEvent has drop, store {
+        proposal_id: u64,
+        finalized_by: address,
+        admin_role: u8,
+        final_status: u8,
     }
 
     public fun initialize_proposals(
@@ -149,11 +211,20 @@ module dao_addr::proposal {
     /// - DAO members must meet proposal creation stake requirement
     /// - Non-members cannot create proposals
     /// 
+    /// AUTOMATIC FINALIZATION (ADMIN/MEMBER-TRIGGERED):
+    /// - DAO admins OR members with proposal creation stake can call finalize_proposal()
+    /// - Finalization logic automatically determines pass/fail based on votes and quorum
+    /// - Neither admins nor members decide the outcome, they just trigger the automatic process
+    /// - This ensures proper oversight while maintaining democratic voting results
+    /// 
     /// PROCESS:
     /// 1. Check if user is admin OR can create proposals (includes membership + proposal stake validation)
     /// 2. If admin -> Allow proposal creation
     /// 3. If member with sufficient proposal stake -> Allow proposal creation
     /// 4. If neither -> Reject with "not_authorized" error
+    /// 5. Proposal created in "draft" status
+    /// 6. Admin must activate proposal using activate_proposal()
+    /// 7. After voting period ends, admin OR qualified member calls finalize_proposal() to automatically determine outcome
     /// 
     /// EXAMPLE:
     /// - min_stake_to_join: 10 MOVE tokens (to become member)
@@ -178,6 +249,10 @@ module dao_addr::proposal {
         if (!is_admin) {
             assert!(membership::can_create_proposal(dao_addr, sender), errors::not_authorized());
         };
+        
+        // Get proposer role for identification
+        let proposer_role = get_user_role(dao_addr, sender);
+        assert!(proposer_role > 0, errors::not_authorized());
 
         let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         let now = timestamp::now_seconds();
@@ -209,11 +284,15 @@ module dao_addr::proposal {
         assert!(voting_start_timestamp >= now, errors::invalid_amount());
         assert!(voting_end_timestamp > voting_start_timestamp, errors::invalid_amount());
 
+        // Create member snapshot for consistent voting eligibility
+        let member_snapshot = create_member_snapshot(dao_addr);
+        
         let proposal = Proposal {
             id: proposal_id,
             title,
             description,
             proposer: sender,
+            proposer_role,
             status: status_draft(),
             votes: vector::empty(),
             yes_votes: 0,
@@ -223,7 +302,10 @@ module dao_addr::proposal {
             voting_start: voting_start_timestamp,
             voting_end: voting_end_timestamp,
             execution_window: execution_window_secs,
-            min_quorum_percent
+            min_quorum_percent,
+            approved_by_admin: false,
+            finalized_by_admin: false,
+            constant_member_list: member_snapshot
         };
 
         vector::push_back(&mut proposals.proposals, proposal);
@@ -232,11 +314,47 @@ module dao_addr::proposal {
         event::emit(ProposalCreatedEvent {
             proposal_id,
             proposer: sender,
+            proposer_role,
             title: copy title,
         });
 
         // Distribute proposal creation reward
         rewards::distribute_proposal_creation_reward(dao_addr, sender, proposal_id);
+    }
+
+    // Admin activation function - more formal proposal activation
+    public entry fun activate_proposal(
+        account: &signer,
+        dao_addr: address,
+        proposal_id: u64
+    ) acquires DaoProposals {
+        let sender = signer::address_of(account);
+        // Only admins can activate proposals
+        assert!(admin::is_admin(dao_addr, sender), errors::not_admin());
+        
+        let proposals = borrow_global_mut<DaoProposals>(dao_addr);
+        let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
+        
+        assert!(is_draft(&proposal.status), errors::invalid_status());
+        
+        // Mark as approved by admin
+        proposal.approved_by_admin = true;
+        proposal.status = status_active();
+        
+        let admin_role = get_user_role(dao_addr, sender);
+        
+        event::emit(ProposalActivatedEvent {
+            proposal_id,
+            activated_by: sender,
+            admin_role,
+        });
+        
+        event::emit(ProposalStatusChangedEvent {
+            proposal_id,
+            old_status: get_status_value(&status_draft()),
+            new_status: get_status_value(&status_active()),
+            reason: string::utf8(b"admin_activated")
+        });
     }
 
     public entry fun start_voting(
@@ -272,6 +390,8 @@ module dao_addr::proposal {
         assert!(vote_type == 1 || vote_type == 2 || vote_type == 3, errors::invalid_vote_type());
         
         let sender = signer::address_of(account);
+        
+        // SIMPLIFIED: Just check if user is a member (includes both members and admins)
         assert!(membership::is_member(dao_addr, sender), errors::not_member());
         
         let proposals = borrow_global_mut<DaoProposals>(dao_addr);
@@ -290,13 +410,17 @@ module dao_addr::proposal {
             i = i + 1;
         };
 
-        // Get voting power directly from DAO-specific staking balance to prevent race conditions
-        let weight = staking::get_staker_amount(dao_addr, sender);
+        // Get voting power from membership module (which already checks staking)
+        let weight = membership::get_voting_power(dao_addr, sender);
         assert!(weight > 0, errors::not_member());
         
-        // Double-check via membership module for consistency
-        let membership_power = membership::get_voting_power(dao_addr, sender);
-        assert!(weight == membership_power, errors::invalid_amount());
+        // Get voter role for tracking (but don't fail if role can't be determined)
+        let voter_role = get_user_role(dao_addr, sender);
+        let final_voter_role = if (voter_role == 0) {
+            ROLE_MEMBER // Default to member if role detection fails
+        } else {
+            voter_role
+        };
         
         let vote_enum = if (vote_type == 1) {
             vote_yes()
@@ -307,7 +431,8 @@ module dao_addr::proposal {
         };
         
         vector::push_back(&mut proposal.votes, Vote { 
-            voter: sender, 
+            voter: sender,
+            voter_role: final_voter_role,
             vote_type: vote_enum, 
             weight,
             voted_at: now
@@ -328,6 +453,7 @@ module dao_addr::proposal {
         event::emit(VoteCastEvent {
             proposal_id,
             voter: sender,
+            voter_role: final_voter_role,
             vote_type,
             weight,
         });
@@ -336,12 +462,18 @@ module dao_addr::proposal {
         rewards::distribute_voting_reward(dao_addr, sender, proposal_id);
     }
 
+    // AUTOMATIC FINALIZATION - Admins OR members with proposal creation stake can call
     public entry fun finalize_proposal(
         account: &signer,
         dao_addr: address,
         proposal_id: u64
     ) acquires DaoProposals {
-        let _sender = signer::address_of(account);
+        let sender = signer::address_of(account);
+        // AUTHORIZATION: Admin OR member who can create proposals
+        let is_admin = admin::is_admin(dao_addr, sender);
+        let can_create_proposals = membership::can_create_proposal(dao_addr, sender);
+        assert!(is_admin || can_create_proposals, errors::not_authorized());
+        
         let proposals = borrow_global_mut<DaoProposals>(dao_addr);
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
 
@@ -361,28 +493,33 @@ module dao_addr::proposal {
             0
         };
         
+        // AUTOMATIC LOGIC: Determine outcome based on votes and quorum
         if (quorum < proposal.min_quorum_percent) {
             let old_status = get_status_value(&proposal.status);
             proposal.status = status_rejected();
+            proposal.finalized_by_admin = true;
+            
             event::emit(ProposalStatusChangedEvent {
                 proposal_id,
                 old_status,
                 new_status: get_status_value(&status_rejected()),
-                reason: string::utf8(b"quorum_not_met")
+                reason: string::utf8(b"automatic_quorum_not_met")
             });
             return
         };
 
+        // AUTOMATIC LOGIC: Check vote majority
         let new_status_enum = if (proposal.yes_votes > proposal.no_votes) status_passed() else status_rejected();
         let old_status = get_status_value(&proposal.status);
         let new_status = get_status_value(&new_status_enum);
         proposal.status = new_status_enum;
+        proposal.finalized_by_admin = true;
         
         event::emit(ProposalStatusChangedEvent {
             proposal_id,
             old_status,
             new_status,
-            reason: string::utf8(b"vote_majority")
+            reason: string::utf8(b"automatic_vote_majority")
         });
 
         // Distribute successful proposal reward if it passed
@@ -390,6 +527,11 @@ module dao_addr::proposal {
             rewards::distribute_successful_proposal_reward(dao_addr, proposal.proposer, proposal_id);
         };
     }
+
+    // NOTE: Proposal finalization is AUTOMATIC but REQUIRES STAKE
+    // Admins OR members with proposal creation stake can call finalize_proposal()
+    // The outcome is determined automatically by votes and quorum
+    // This ensures proper oversight while maintaining democratic voting integrity
 
     public entry fun execute_proposal(
         account: &signer,
@@ -468,6 +610,63 @@ module dao_addr::proposal {
         vector::length(&borrow_global<DaoProposals>(dao_addr).proposals)
     }
 
+    // Get all proposals for a DAO
+    #[view]
+    public fun get_all_proposals(dao_addr: address): vector<Proposal> acquires DaoProposals {
+        if (!exists<DaoProposals>(dao_addr)) {
+            return vector::empty<Proposal>()
+        };
+        let dao_proposals = borrow_global<DaoProposals>(dao_addr);
+        dao_proposals.proposals
+    }
+
+    // Check if DAO has proposals resource
+    #[view]
+    public fun has_proposals(dao_addr: address): bool {
+        exists<DaoProposals>(dao_addr)
+    }
+
+    // Get proposal vote count
+    #[view] 
+    public fun get_proposal_vote_count(dao_addr: address, proposal_id: u64): u64 acquires DaoProposals {
+        if (!exists<DaoProposals>(dao_addr)) return 0;
+        let dao_proposals = borrow_global<DaoProposals>(dao_addr);
+        if (proposal_id >= vector::length(&dao_proposals.proposals)) return 0;
+        let proposal = vector::borrow(&dao_proposals.proposals, proposal_id);
+        vector::length(&proposal.votes)
+    }
+
+    // Get proposal details for statistics
+    #[view]
+    public fun get_proposal_details(dao_addr: address, proposal_id: u64): (u64, string::String, string::String, address, u8, u64, u64, u64, u64, u64, u64, u64, bool, bool, u64, u64) acquires DaoProposals {
+        if (!exists<DaoProposals>(dao_addr)) {
+            return (0, string::utf8(b""), string::utf8(b""), @0x0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, 0, 0)
+        };
+        let dao_proposals = borrow_global<DaoProposals>(dao_addr);
+        if (proposal_id >= vector::length(&dao_proposals.proposals)) {
+            return (0, string::utf8(b""), string::utf8(b""), @0x0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, 0, 0)
+        };
+        let proposal = vector::borrow(&dao_proposals.proposals, proposal_id);
+        (
+            proposal.id,
+            proposal.title,
+            proposal.description,
+            proposal.proposer,
+            proposal.status.value,
+            proposal.yes_votes,
+            proposal.no_votes,
+            proposal.abstain_votes,
+            proposal.created_at,
+            proposal.voting_start,
+            proposal.voting_end,
+            proposal.execution_window,
+            proposal.approved_by_admin,
+            proposal.finalized_by_admin,
+            vector::length(&proposal.votes),
+            vector::length(&proposal.constant_member_list)
+        )
+    }
+
     fun find_proposal(proposals: &vector<Proposal>, proposal_id: u64): &Proposal {
         let i = 0;
         while (i < vector::length(proposals)) {
@@ -498,4 +697,236 @@ module dao_addr::proposal {
     #[view] public fun get_vote_yes(): u8 { get_vote_type_value(&vote_yes()) }
     #[view] public fun get_vote_no(): u8 { get_vote_type_value(&vote_no()) }
     #[view] public fun get_vote_abstain(): u8 { get_vote_type_value(&vote_abstain()) }
+
+    // New view functions for enhanced proposal features
+    #[view]
+    public fun is_proposal_approved_by_admin(dao_addr: address, proposal_id: u64): bool acquires DaoProposals {
+        let proposals = &borrow_global<DaoProposals>(dao_addr).proposals;
+        let proposal = find_proposal(proposals, proposal_id);
+        proposal.approved_by_admin
+    }
+
+    #[view]
+    public fun is_proposal_finalized_by_admin(dao_addr: address, proposal_id: u64): bool acquires DaoProposals {
+        let proposals = &borrow_global<DaoProposals>(dao_addr).proposals;
+        let proposal = find_proposal(proposals, proposal_id);
+        proposal.finalized_by_admin
+    }
+
+    #[view]
+    public fun get_proposal_roles(dao_addr: address, proposal_id: u64): (u8, vector<u8>) acquires DaoProposals {
+        let proposals = &borrow_global<DaoProposals>(dao_addr).proposals;
+        let proposal = find_proposal(proposals, proposal_id);
+        let voter_roles = vector::empty<u8>();
+        let i = 0;
+        while (i < vector::length(&proposal.votes)) {
+            let vote = vector::borrow(&proposal.votes, i);
+            vector::push_back(&mut voter_roles, vote.voter_role);
+            i = i + 1;
+        };
+        (proposal.proposer_role, voter_roles)
+    }
+
+    #[view] 
+    public fun get_role_member(): u8 { ROLE_MEMBER }
+    #[view] 
+    public fun get_role_admin(): u8 { ROLE_ADMIN }
+    #[view] 
+    public fun get_role_super_admin(): u8 { ROLE_SUPER_ADMIN }
+
+    // Additional view functions for frontend integration
+    #[view]
+    public fun has_user_voted_on_proposal(dao_addr: address, proposal_id: u64, user: address): bool acquires DaoProposals {
+        let proposals = &borrow_global<DaoProposals>(dao_addr).proposals;
+        let proposal = find_proposal(proposals, proposal_id);
+        let i = 0;
+        while (i < vector::length(&proposal.votes)) {
+            let vote = vector::borrow(&proposal.votes, i);
+            if (vote.voter == user) {
+                return true
+            };
+            i = i + 1;
+        };
+        false
+    }
+
+    #[view]
+    public fun get_user_vote_on_proposal(dao_addr: address, proposal_id: u64, user: address): (bool, u8, u64) acquires DaoProposals {
+        let proposals = &borrow_global<DaoProposals>(dao_addr).proposals;
+        let proposal = find_proposal(proposals, proposal_id);
+        let i = 0;
+        while (i < vector::length(&proposal.votes)) {
+            let vote = vector::borrow(&proposal.votes, i);
+            if (vote.voter == user) {
+                return (true, get_vote_type_value(&vote.vote_type), vote.weight)
+            };
+            i = i + 1;
+        };
+        (false, 0, 0)
+    }
+
+    #[view]
+    public fun get_user_status_in_dao(dao_addr: address, user: address): u8 {
+        get_user_role(dao_addr, user)
+    }
+
+    #[view]
+    public fun get_proposal_votes_count(dao_addr: address, proposal_id: u64): (u64, u64, u64) acquires DaoProposals {
+        let proposals = &borrow_global<DaoProposals>(dao_addr).proposals;
+        let proposal = find_proposal(proposals, proposal_id);
+        (proposal.yes_votes, proposal.no_votes, proposal.abstain_votes)
+    }
+
+    #[view]
+    public fun get_proposal_detailed_info(dao_addr: address, proposal_id: u64): (string::String, string::String, address, u8, u64, u64, u64, u64, u64) acquires DaoProposals {
+        let proposals = &borrow_global<DaoProposals>(dao_addr).proposals;
+        let proposal = find_proposal(proposals, proposal_id);
+        (
+            proposal.title,
+            proposal.description,
+            proposal.proposer,
+            get_status_value(&proposal.status),
+            proposal.created_at,
+            proposal.voting_start,
+            proposal.voting_end,
+            proposal.yes_votes + proposal.no_votes + proposal.abstain_votes,
+            proposal.min_quorum_percent
+        )
+    }
+
+    // Diagnostic function to check voting eligibility
+    #[view]
+    public fun check_voting_eligibility(dao_addr: address, user: address): (bool, u64, bool, u8) {
+        let is_member = membership::is_member(dao_addr, user);
+        let voting_power = membership::get_voting_power(dao_addr, user);
+        let has_stake = voting_power > 0;
+        let user_role = get_user_role(dao_addr, user);
+        (is_member, voting_power, has_stake, user_role)
+    }
+
+    // Get user status string for display
+    #[view]
+    public fun get_user_status_string(dao_addr: address, user: address): string::String {
+        // Try admin check first
+        let is_admin_result = admin::is_admin(dao_addr, user);
+        if (is_admin_result) {
+            return string::utf8(b"Admin")
+        };
+        
+        // Try council check second  
+        let is_council_result = council::is_council_member(dao_addr, user);
+        if (is_council_result) {
+            return string::utf8(b"Council Member")
+        };
+        
+        // Try member check third
+        let is_member_result = membership::is_member(dao_addr, user);
+        if (is_member_result) {
+            return string::utf8(b"Member")
+        };
+        
+        // Default case
+        string::utf8(b"Not a member")
+    }
+
+    // Alternative status function with more detailed admin check
+    #[view] 
+    public fun get_user_status_detailed(dao_addr: address, user: address): string::String {
+        // Check admin status first (most privileged)
+        if (admin::is_admin(dao_addr, user)) {
+            // Try to get admin role safely
+            let admin_role = admin::get_admin_role(dao_addr, user);
+            if (admin_role == admin::role_super_admin()) {
+                return string::utf8(b"Super Admin")
+            } else {
+                return string::utf8(b"Admin")
+            }
+        };
+        
+        // Check council status second
+        if (council::is_council_member(dao_addr, user)) {
+            return string::utf8(b"Council Member")
+        };
+        
+        // Check member status third
+        if (membership::is_member(dao_addr, user)) {
+            return string::utf8(b"Member")
+        };
+        
+        // Default case
+        string::utf8(b"Not a member")
+    }
+
+    // Get detailed user permissions
+    #[view]
+    public fun get_user_permissions(dao_addr: address, user: address): (bool, bool, bool, bool, bool, bool) {
+        let is_admin = admin::is_admin(dao_addr, user);
+        let is_council = council::is_council_member(dao_addr, user);
+        let is_member = membership::is_member(dao_addr, user);
+        let can_create_proposals = membership::can_create_proposal(dao_addr, user);
+        let can_vote = is_member || is_admin;
+        let can_finalize = is_admin || can_create_proposals;
+        
+        (is_admin, is_council, is_member, can_create_proposals, can_vote, can_finalize)
+    }
+
+    // Check if user can finalize proposals
+    #[view]
+    public fun can_user_finalize_proposals(dao_addr: address, user: address): bool {
+        let is_admin = admin::is_admin(dao_addr, user);
+        let can_create_proposals = membership::can_create_proposal(dao_addr, user);
+        is_admin || can_create_proposals
+    }
+
+    // Debug function to see all status checks
+    #[view]
+    public fun debug_user_status(dao_addr: address, user: address): (bool, bool, bool, u8, u64) {
+        let is_admin = admin::is_admin(dao_addr, user);
+        let is_council = council::is_council_member(dao_addr, user);
+        let is_member = membership::is_member(dao_addr, user);
+        let admin_role = if (is_admin) admin::get_admin_role(dao_addr, user) else 0;
+        let voting_power = membership::get_voting_power(dao_addr, user);
+        
+        (is_admin, is_council, is_member, admin_role, voting_power)
+    }
+
+    // Direct admin check - simple and reliable
+    #[view]
+    public fun is_user_admin(dao_addr: address, user: address): bool {
+        admin::is_admin(dao_addr, user)
+    }
+
+    // Direct member check - simple and reliable
+    #[view] 
+    public fun is_user_member(dao_addr: address, user: address): bool {
+        membership::is_member(dao_addr, user)
+    }
+
+    // Direct council check - simple and reliable
+    #[view]
+    public fun is_user_council(dao_addr: address, user: address): bool {
+        council::is_council_member(dao_addr, user)
+    }
+
+    // Check if user can create proposals - for frontend button logic
+    #[view]
+    public fun can_user_create_proposals(dao_addr: address, user: address): bool {
+        let is_admin = admin::is_admin(dao_addr, user);
+        let can_propose = membership::can_create_proposal(dao_addr, user);
+        is_admin || can_propose
+    }
+
+    // Get simple status for frontend - returns number for easy checking
+    #[view]
+    public fun get_user_status_code(dao_addr: address, user: address): u8 {
+        if (admin::is_admin(dao_addr, user)) {
+            3 // Admin
+        } else if (council::is_council_member(dao_addr, user)) {
+            2 // Council
+        } else if (membership::is_member(dao_addr, user)) {
+            1 // Member
+        } else {
+            0 // Not a member
+        }
+    }
 }
