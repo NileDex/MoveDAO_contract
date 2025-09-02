@@ -1,5 +1,5 @@
 #[test_only]
-module dao_addr::rewards_test {
+module movedaoaddrx::rewards_test {
     use std::vector;
     use std::string;
     use std::signer;
@@ -7,13 +7,13 @@ module dao_addr::rewards_test {
     use aptos_framework::coin;
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::timestamp;
-    use dao_addr::dao_core;
-    use dao_addr::rewards;
-    use dao_addr::proposal;
-    use dao_addr::membership;
-    use dao_addr::staking;
-    use dao_addr::treasury;
-    use dao_addr::test_utils;
+    use movedaoaddrx::dao_core_file as dao_core;
+    use movedaoaddrx::rewards;
+    use movedaoaddrx::proposal;
+    use movedaoaddrx::membership;
+    use movedaoaddrx::staking;
+    use movedaoaddrx::treasury;
+    use movedaoaddrx::test_utils;
 
     const EASSERTION_FAILED: u64 = 1000;
     const TEST_DAO_ADMIN: address = @0x123;
@@ -21,12 +21,10 @@ module dao_addr::rewards_test {
     const TEST_VOTER2: address = @0x789;
 
     fun setup_dao_with_rewards(admin: &signer) {
-        let admin_addr = signer::address_of(admin);
-        let council = vector::singleton(admin_addr);  // Use actual admin address
+        let council = vector::singleton(TEST_DAO_ADMIN);
         dao_core::create_dao(
             admin,
             string::utf8(b"Test DAO"),
-            string::utf8(b"Subname"),
             string::utf8(b"Test Description"),
             b"logo",
             b"bg",
@@ -37,6 +35,8 @@ module dao_addr::rewards_test {
 
     fun setup_test_user(user: &signer, amount: u64) {
         test_utils::setup_test_account(user);
+n        // Initialize DAO registry for test environment
+        test_utils::init_dao_registry_for_test();
         coin::register<AptosCoin>(user);
         test_utils::mint_aptos(user, amount);
     }
@@ -49,23 +49,23 @@ module dao_addr::rewards_test {
         voter2: &signer
     ) {
         account::create_account_for_test(@0x1);
-        account::create_account_for_test(signer::address_of(admin));
-        account::create_account_for_test(signer::address_of(voter1));
-        account::create_account_for_test(signer::address_of(voter2));
+        account::create_account_for_test(TEST_DAO_ADMIN);
+        account::create_account_for_test(TEST_VOTER1);
+        account::create_account_for_test(TEST_VOTER2);
         
         timestamp::set_time_has_started_for_testing(aptos_framework);
         timestamp::fast_forward_seconds(1);
         test_utils::setup_aptos(aptos_framework);
-        setup_test_user(admin, 100000000000);  // 1000 APT
-        setup_test_user(voter1, 100000000000);  // 1000 APT
-        setup_test_user(voter2, 100000000000);  // 1000 APT
+        setup_test_user(admin, 2000);
+        setup_test_user(voter1, 2000);
+        setup_test_user(voter2, 2000);
 
         setup_dao_with_rewards(admin);
         let dao_addr = signer::address_of(admin);
 
         // Add funds to treasury for rewards
         let treasury_obj = dao_core::get_treasury_object(dao_addr);
-        treasury::deposit_to_object(admin, treasury_obj, 10000000000);  // 100 APT for rewards
+        treasury::deposit_to_object(admin, treasury_obj, 1000);
 
         // Setup voters as members
         staking::stake(voter1, dao_addr, 200);
@@ -93,17 +93,15 @@ module dao_addr::rewards_test {
         proposal::cast_vote(voter2, dao_addr, 0, 2); // vote_no
 
         // Check pending rewards
-        let voter1_addr = signer::address_of(voter1);
-        let voter2_addr = signer::address_of(voter2);
-        let voter1_rewards = rewards::get_pending_rewards(dao_addr, voter1_addr);
-        let voter2_rewards = rewards::get_pending_rewards(dao_addr, voter2_addr);
+        let voter1_rewards = rewards::get_pending_rewards(dao_addr, TEST_VOTER1);
+        let voter2_rewards = rewards::get_pending_rewards(dao_addr, TEST_VOTER2);
         
         assert!(vector::length(&voter1_rewards) == 1, EASSERTION_FAILED);
         assert!(vector::length(&voter2_rewards) == 1, EASSERTION_FAILED);
 
         // Check claimable amounts
-        let voter1_claimable = rewards::get_total_claimable(dao_addr, voter1_addr);
-        let voter2_claimable = rewards::get_total_claimable(dao_addr, voter2_addr);
+        let voter1_claimable = rewards::get_total_claimable(dao_addr, TEST_VOTER1);
+        let voter2_claimable = rewards::get_total_claimable(dao_addr, TEST_VOTER2);
         
         assert!(voter1_claimable == 10, EASSERTION_FAILED + 1); // Default voting reward is 10
         assert!(voter2_claimable == 10, EASSERTION_FAILED + 2);
@@ -134,14 +132,14 @@ module dao_addr::rewards_test {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         timestamp::fast_forward_seconds(1);
         test_utils::setup_aptos(aptos_framework);
-        setup_test_user(admin, 100000000000);  // 1000 APT
+        setup_test_user(admin, 2000);
 
         setup_dao_with_rewards(admin);
         let dao_addr = signer::address_of(admin);
 
         // Add funds to treasury for rewards
         let treasury_obj = dao_core::get_treasury_object(dao_addr);
-        treasury::deposit_to_object(admin, treasury_obj, 10000000000);  // 100 APT for rewards
+        treasury::deposit_to_object(admin, treasury_obj, 1000);
 
         // Create a proposal (this should trigger proposal creation reward)
         proposal::create_proposal(
@@ -156,11 +154,10 @@ module dao_addr::rewards_test {
         );
 
         // Check pending rewards for proposal creator
-        let admin_addr = signer::address_of(admin);
-        let admin_rewards = rewards::get_pending_rewards(dao_addr, admin_addr);
+        let admin_rewards = rewards::get_pending_rewards(dao_addr, TEST_DAO_ADMIN);
         assert!(vector::length(&admin_rewards) == 1, EASSERTION_FAILED);
 
-        let admin_claimable = rewards::get_total_claimable(dao_addr, admin_addr);
+        let admin_claimable = rewards::get_total_claimable(dao_addr, TEST_DAO_ADMIN);
         assert!(admin_claimable == 100, EASSERTION_FAILED + 1); // Default proposal creation reward is 100
 
         test_utils::destroy_caps(aptos_framework);
@@ -179,15 +176,15 @@ module dao_addr::rewards_test {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         timestamp::fast_forward_seconds(1);
         test_utils::setup_aptos(aptos_framework);
-        setup_test_user(admin, 100000000000);  // 1000 APT
-        setup_test_user(voter1, 100000000000);  // 1000 APT
+        setup_test_user(admin, 2000);
+        setup_test_user(voter1, 2000);
 
         setup_dao_with_rewards(admin);
         let dao_addr = signer::address_of(admin);
 
         // Add funds to treasury for rewards
         let treasury_obj = dao_core::get_treasury_object(dao_addr);
-        treasury::deposit_to_object(admin, treasury_obj, 10000000000);  // 100 APT for rewards
+        treasury::deposit_to_object(admin, treasury_obj, 1000);
 
         // Setup voter as member
         staking::stake(voter1, dao_addr, 200);
@@ -235,7 +232,7 @@ module dao_addr::rewards_test {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         timestamp::fast_forward_seconds(1);
         test_utils::setup_aptos(aptos_framework);
-        setup_test_user(admin, 100000000000);  // 1000 APT
+        setup_test_user(admin, 2000);
 
         setup_dao_with_rewards(admin);
         let dao_addr = signer::address_of(admin);
@@ -279,14 +276,14 @@ module dao_addr::rewards_test {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         timestamp::fast_forward_seconds(1);
         test_utils::setup_aptos(aptos_framework);
-        setup_test_user(admin, 100000000000);  // 1000 APT
+        setup_test_user(admin, 2000);
 
         setup_dao_with_rewards(admin);
         let dao_addr = signer::address_of(admin);
 
         // Add funds to treasury for rewards
         let treasury_obj = dao_core::get_treasury_object(dao_addr);
-        treasury::deposit_to_object(admin, treasury_obj, 10000000000);  // 100 APT for rewards
+        treasury::deposit_to_object(admin, treasury_obj, 1000);
 
         // Test manual staking rewards distribution
         let stakers = vector::singleton(TEST_DAO_ADMIN);
@@ -306,7 +303,7 @@ module dao_addr::rewards_test {
     }
 
     #[test(aptos_framework = @0x1, admin = @0x123, voter1 = @0x456)]
-    #[expected_failure(abort_code = 400, location = dao_addr::dao_core)] // errors::insufficient_treasury() = 400
+    #[expected_failure(abort_code = 400, location = movedaoaddrx::dao_core_file as dao_core)] // errors::insufficient_treasury() = 400
     fun test_insufficient_treasury_for_rewards(
         aptos_framework: &signer,
         admin: &signer,
@@ -319,8 +316,8 @@ module dao_addr::rewards_test {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         timestamp::fast_forward_seconds(1);
         test_utils::setup_aptos(aptos_framework);
-        setup_test_user(admin, 100000000000);  // 1000 APT
-        setup_test_user(voter1, 100000000000);  // 1000 APT
+        setup_test_user(admin, 2000);
+        setup_test_user(voter1, 2000);
 
         setup_dao_with_rewards(admin);
         let dao_addr = signer::address_of(admin);
@@ -354,21 +351,25 @@ module dao_addr::rewards_test {
     }
 
     #[test]
-    #[expected_failure(abort_code = 1, location = dao_addr::dao_core)] // errors::nothing_to_claim() = 1
+    #[expected_failure(abort_code = 1, location = movedaoaddrx::dao_core_file as dao_core)] // errors::nothing_to_claim() = 1
     fun test_cannot_claim_when_nothing_to_claim_expected_failure() {
         let aptos_framework = account::create_signer_for_test(@0x1);
-        let dao_admin = account::create_signer_for_test(@dao_addr);
+        let dao_admin = account::create_signer_for_test(@movedaoaddrx);
         let user = account::create_signer_for_test(@0xA11CE);
 
         // Setup
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         account::create_account_for_test(@0x1);
-        account::create_account_for_test(@dao_addr);
+        account::create_account_for_test(@movedaoaddrx);
         account::create_account_for_test(@0xA11CE);
 
         test_utils::setup_aptos(&aptos_framework);
         test_utils::setup_test_account(&dao_admin);
+n        // Initialize DAO registry for test environment
+        test_utils::init_dao_registry_for_test();
         test_utils::setup_test_account(&user);
+n        // Initialize DAO registry for test environment
+        test_utils::init_dao_registry_for_test();
         coin::register<AptosCoin>(&user);
         test_utils::mint_aptos(&user, 1000);
 
@@ -378,7 +379,6 @@ module dao_addr::rewards_test {
         dao_core::create_dao(
             &dao_admin,
             string::utf8(b"Test DAO"),
-            string::utf8(b"Subname"),
             string::utf8(b"Description"),
             b"logo",
             b"bg",
@@ -387,11 +387,11 @@ module dao_addr::rewards_test {
         );
 
         // Make user stake first, then join as member
-        staking::stake(&user, @dao_addr, 1000);
-        membership::join(&user, @dao_addr);
+        staking::stake(&user, @movedaoaddrx, 1000);
+        membership::join(&user, @movedaoaddrx);
 
         // Try to claim rewards when user has no rewards
         // This should fail with nothing_to_claim error
-        dao_core::claim_rewards(&user, @dao_addr);
+        dao_core::claim_rewards(&user, @movedaoaddrx);
     }
 }

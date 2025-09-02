@@ -1,5 +1,5 @@
 // Error definitions - centralized error codes and helper functions for all DAO modules
-module dao_addr::errors {
+module movedaoaddrx::errors {
     use std::error;
 
     // =============================================================================
@@ -121,6 +121,8 @@ module dao_addr::errors {
     const EUNAUTHORIZED: u64 = 608;
     const EREGISTRY_NOT_INITIALIZED: u64 = 609;
     const ERATE_LIMIT_EXCEEDED: u64 = 610;
+    const ESUBNAME_ALREADY_EXISTS: u64 = 611;
+    const ESUBNAME_NOT_FOUND: u64 = 612;
 
     // =============================================================================
     // ERROR HELPER FUNCTIONS
@@ -209,6 +211,8 @@ module dao_addr::errors {
     public fun unauthorized(): u64 { EUNAUTHORIZED }
     public fun registry_not_initialized(): u64 { EREGISTRY_NOT_INITIALIZED }
     public fun rate_limit_exceeded(): u64 { ERATE_LIMIT_EXCEEDED }
+    public fun subname_already_exists(): u64 { ESUBNAME_ALREADY_EXISTS }
+    public fun subname_not_found(): u64 { ESUBNAME_NOT_FOUND }
 
     // =============================================================================
     // ADVANCED ERROR HELPER FUNCTIONS

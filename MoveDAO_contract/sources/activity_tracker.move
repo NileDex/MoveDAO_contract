@@ -1,5 +1,5 @@
 // Activity tracking system - centralized activity logging and querying for DAO operations
-module dao_addr::activity_tracker {
+module movedaoaddrx::activity_tracker {
     use std::signer;
     use std::string::{Self, String};
     use std::vector;
@@ -7,7 +7,7 @@ module dao_addr::activity_tracker {
     use std::table::{Self, Table};
     use aptos_framework::timestamp;
     use aptos_framework::object::{Self, Object};
-    use dao_addr::errors;
+    use movedaoaddrx::errors;
 
     // Activity types
     const ACTIVITY_TYPE_DAO_CREATED: u8 = 1;
@@ -105,7 +105,7 @@ module dao_addr::activity_tracker {
         transaction_hash: vector<u8>,
         block_number: u64,
     ) acquires ActivityStore, GlobalActivityTracker {
-        let global_tracker = borrow_global<GlobalActivityTracker>(@dao_addr);
+        let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
         let activity_store = borrow_global_mut<ActivityStore>(object::object_address(&global_tracker.tracker));
         
         let activity_id = activity_store.next_activity_id;
@@ -165,7 +165,7 @@ module dao_addr::activity_tracker {
 
     // Query functions
     public fun get_dao_activities(dao_address: address): vector<u64> acquires ActivityStore, GlobalActivityTracker {
-        let global_tracker = borrow_global<GlobalActivityTracker>(@dao_addr);
+        let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
         
         if (table::contains(&activity_store.dao_activities, dao_address)) {
@@ -176,7 +176,7 @@ module dao_addr::activity_tracker {
     }
 
     public fun get_user_activities(user_address: address): vector<u64> acquires ActivityStore, GlobalActivityTracker {
-        let global_tracker = borrow_global<GlobalActivityTracker>(@dao_addr);
+        let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
         
         if (table::contains(&activity_store.user_activities, user_address)) {
@@ -187,7 +187,7 @@ module dao_addr::activity_tracker {
     }
 
     public fun get_activity_by_id(activity_id: u64): ActivityRecord acquires ActivityStore, GlobalActivityTracker {
-        let global_tracker = borrow_global<GlobalActivityTracker>(@dao_addr);
+        let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
         
         assert!(table::contains(&activity_store.activities, activity_id), errors::not_found());
@@ -195,7 +195,7 @@ module dao_addr::activity_tracker {
     }
 
     public fun get_total_activities(): u64 acquires ActivityStore, GlobalActivityTracker {
-        let global_tracker = borrow_global<GlobalActivityTracker>(@dao_addr);
+        let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
         activity_store.total_activities
     }
@@ -272,6 +272,65 @@ module dao_addr::activity_tracker {
             ACTIVITY_TYPE_PROPOSAL_CREATED,
             proposer,
             string::utf8(b"Proposal Created"),
+            proposal_title,
+            0,
+            vector::empty(),
+            transaction_hash,
+            block_number,
+        );
+    }
+
+    public fun emit_member_left(
+        dao_address: address,
+        member: address,
+        transaction_hash: vector<u8>,
+        block_number: u64,
+    ) acquires ActivityStore, GlobalActivityTracker {
+        emit_activity(
+            dao_address,
+            ACTIVITY_TYPE_MEMBER_LEFT,
+            member,
+            string::utf8(b"Member Left"),
+            string::utf8(b"A member left the DAO"),
+            0,
+            vector::empty(),
+            transaction_hash,
+            block_number,
+        );
+    }
+
+    public fun emit_unstake_activity(
+        dao_address: address,
+        staker: address,
+        amount: u64,
+        transaction_hash: vector<u8>,
+        block_number: u64,
+    ) acquires ActivityStore, GlobalActivityTracker {
+        emit_activity(
+            dao_address,
+            ACTIVITY_TYPE_UNSTAKE,
+            staker,
+            string::utf8(b"Tokens Unstaked"),
+            string::utf8(b"User unstaked tokens from the DAO"),
+            amount,
+            vector::empty(),
+            transaction_hash,
+            block_number,
+        );
+    }
+
+    public fun emit_proposal_voted(
+        dao_address: address,
+        voter: address,
+        proposal_title: String,
+        transaction_hash: vector<u8>,
+        block_number: u64,
+    ) acquires ActivityStore, GlobalActivityTracker {
+        emit_activity(
+            dao_address,
+            ACTIVITY_TYPE_PROPOSAL_VOTED,
+            voter,
+            string::utf8(b"Proposal Voted"),
             proposal_title,
             0,
             vector::empty(),

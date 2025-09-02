@@ -1,6 +1,6 @@
 // Safe math - prevents integer overflow/underflow attacks with secure arithmetic operations
-module dao_addr::safe_math {
-    use dao_addr::errors;
+module movedaoaddrx::safe_math {
+    use movedaoaddrx::errors;
 
     // Maximum value for u64
     const MAX_U64: u64 = 18446744073709551615;
@@ -69,7 +69,7 @@ module dao_addr::safe_math {
     }
 
     #[test]
-    #[expected_failure(abort_code = 4, location = dao_addr::safe_math)]
+    #[expected_failure(abort_code = 4, location = movedaoaddrx::safe_math)]
     public fun test_safe_add_overflow() {
         safe_add(MAX_U64, 1);
     }
@@ -81,7 +81,7 @@ module dao_addr::safe_math {
     }
 
     #[test]
-    #[expected_failure(abort_code = 4, location = dao_addr::safe_math)]
+    #[expected_failure(abort_code = 4, location = movedaoaddrx::safe_math)]
     public fun test_safe_sub_underflow() {
         safe_sub(100, 200);
     }

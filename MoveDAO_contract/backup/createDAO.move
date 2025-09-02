@@ -43,7 +43,7 @@ module movedaoaddrx::create_dao_tests {
             logo, 
             background,
             initial_council, 
-            6000000  // min_stake_to_join (6 Move)
+            30  // min_stake_to_join
         );
 
         // Verify DAO was created by checking stored data

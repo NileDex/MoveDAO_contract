@@ -1,5 +1,5 @@
 #[test_only]
-module dao_addr::membership_tests {
+module movedaoaddrx::membership_tests {
     use std::vector;
     use std::string;
     use std::signer;
@@ -7,26 +7,27 @@ module dao_addr::membership_tests {
     use aptos_framework::coin;
     use aptos_framework::timestamp;
     use aptos_framework::aptos_coin;
-    use dao_addr::dao_core;
-    use dao_addr::membership;
-    use dao_addr::staking;
-    use dao_addr::test_utils;
+    use movedaoaddrx::dao_core_file;
+    use movedaoaddrx::membership;
+    use movedaoaddrx::staking;
+    use movedaoaddrx::test_utils;
 
     const TEST_MEMBER: address = @0xA;
     const TEST_MEMBER2: address = @0xB;
     const TEST_MIN_STAKE: u64 = 100;
 
-    #[test(aptos_framework = @0x1, admin = @dao_addr)]
+    #[test(aptos_framework = @0x1, admin = @movedaoaddrx)]
     fun test_membership_lifecycle(aptos_framework: &signer, admin: &signer) {
         account::create_account_for_test(@0x1);
-        account::create_account_for_test(@dao_addr);
+        account::create_account_for_test(@movedaoaddrx);
         timestamp::set_time_has_started_for_testing(aptos_framework);
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(admin);
+        dao_core_file::init_registry_for_test();
 
         // Create DAO which initializes membership
-        let initial_council = vector::singleton(@dao_addr);
-        dao_core::create_dao(
+        let initial_council = vector::singleton(@movedaoaddrx);
+        dao_core_file::create_dao(
             admin, 
             string::utf8(b"Test DAO"),
             string::utf8(b"Subname"),
@@ -66,17 +67,18 @@ module dao_addr::membership_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, admin = @dao_addr)]
-    #[expected_failure(abort_code = 524440, location = dao_addr::errors)] // errors::already_exists_error(already_member()) = 524440
+    #[test(aptos_framework = @0x1, admin = @movedaoaddrx)]
+    #[expected_failure(abort_code = 524440, location = movedaoaddrx::errors)] // errors::already_exists_error(already_member()) = 524440
     fun test_cannot_join_twice(aptos_framework: &signer, admin: &signer) {
         account::create_account_for_test(@0x1);
-        account::create_account_for_test(@dao_addr);
+        account::create_account_for_test(@movedaoaddrx);
         timestamp::set_time_has_started_for_testing(aptos_framework);
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(admin);
+        dao_core_file::init_registry_for_test();
 
-        let initial_council = vector::singleton(@dao_addr);
-        dao_core::create_dao(
+        let initial_council = vector::singleton(@movedaoaddrx);
+        dao_core_file::create_dao(
             admin, 
             string::utf8(b"Test DAO"),
             string::utf8(b"Subname"), 
@@ -101,17 +103,18 @@ module dao_addr::membership_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, admin = @dao_addr)]
-    #[expected_failure(abort_code = 153, location = dao_addr::membership)] // errors::min_stake_required() = 153
+    #[test(aptos_framework = @0x1, admin = @movedaoaddrx)]
+    #[expected_failure(abort_code = 153, location = movedaoaddrx::membership)] // errors::min_stake_required() = 153
     fun test_cannot_join_without_min_stake(aptos_framework: &signer, admin: &signer) {
         account::create_account_for_test(@0x1);
-        account::create_account_for_test(@dao_addr);
+        account::create_account_for_test(@movedaoaddrx);
         timestamp::set_time_has_started_for_testing(aptos_framework);
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(admin);
+        dao_core_file::init_registry_for_test();
 
-        let initial_council = vector::singleton(@dao_addr);
-        dao_core::create_dao(
+        let initial_council = vector::singleton(@movedaoaddrx);
+        dao_core_file::create_dao(
             admin, 
             string::utf8(b"Test DAO"),
             string::utf8(b"Subname"), 
@@ -135,16 +138,17 @@ module dao_addr::membership_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, admin = @dao_addr)]
+    #[test(aptos_framework = @0x1, admin = @movedaoaddrx)]
     fun test_voting_power_scales_with_stake(aptos_framework: &signer, admin: &signer) {
         account::create_account_for_test(@0x1);
-        account::create_account_for_test(@dao_addr);
+        account::create_account_for_test(@movedaoaddrx);
         timestamp::set_time_has_started_for_testing(aptos_framework);
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(admin);
+        dao_core_file::init_registry_for_test();
 
-        let initial_council = vector::singleton(@dao_addr);
-        dao_core::create_dao(
+        let initial_council = vector::singleton(@movedaoaddrx);
+        dao_core_file::create_dao(
             admin, 
             string::utf8(b"Test DAO"),
             string::utf8(b"Subname"), 
@@ -187,16 +191,17 @@ module dao_addr::membership_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, admin = @dao_addr)]
+    #[test(aptos_framework = @0x1, admin = @movedaoaddrx)]
     fun test_voting_power_decreases_with_unstake(aptos_framework: &signer, admin: &signer) {
         account::create_account_for_test(@0x1);
-        account::create_account_for_test(@dao_addr);
+        account::create_account_for_test(@movedaoaddrx);
         timestamp::set_time_has_started_for_testing(aptos_framework);
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(admin);
+        dao_core_file::init_registry_for_test();
 
-        let initial_council = vector::singleton(@dao_addr);
-        dao_core::create_dao(
+        let initial_council = vector::singleton(@movedaoaddrx);
+        dao_core_file::create_dao(
             admin, 
             string::utf8(b"Test DAO"),
             string::utf8(b"Subname"), 
@@ -234,17 +239,18 @@ module dao_addr::membership_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, admin = @dao_addr)]
-    #[expected_failure(abort_code = 327831, location = dao_addr::errors)] // errors::permission_denied(not_member()) = 327831
+    #[test(aptos_framework = @0x1, admin = @movedaoaddrx)]
+    #[expected_failure(abort_code = 327831, location = movedaoaddrx::errors)] // errors::permission_denied(not_member()) = 327831
     fun test_cannot_leave_if_not_member(aptos_framework: &signer, admin: &signer) {
         account::create_account_for_test(@0x1);
-        account::create_account_for_test(@dao_addr);
+        account::create_account_for_test(@movedaoaddrx);
         timestamp::set_time_has_started_for_testing(aptos_framework);
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(admin);
+        dao_core_file::init_registry_for_test();
 
-        let initial_council = vector::singleton(@dao_addr);
-        dao_core::create_dao(
+        let initial_council = vector::singleton(@movedaoaddrx);
+        dao_core_file::create_dao(
             admin, 
             string::utf8(b"Test DAO"),
             string::utf8(b"Subname"), 

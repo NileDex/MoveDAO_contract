@@ -1,11 +1,11 @@
 #[test_only]
-module movedaoaddrx::test_utils {
+module movedaoaddrx::test_utils_backup {
     use std::signer;
+    use std::vector;
     use aptos_framework::account;
     use aptos_framework::coin;
     use aptos_framework::aptos_coin;
     use aptos_framework::timestamp;
-    use movedaoaddrx::activity_tracker;
 
     struct TestData has key {
         mint_cap: coin::MintCapability<aptos_coin::AptosCoin>,
@@ -77,13 +77,6 @@ module movedaoaddrx::test_utils {
     }
 
     #[test_only]
-    public fun init_activity_tracker_for_test() {
-        account::create_account_for_test(@movedaoaddrx);
-        let module_signer = account::create_signer_for_test(@movedaoaddrx);
-        activity_tracker::test_init_module(&module_signer);
-    }
-
-    #[test_only]
     public fun fast_forward_time(seconds: u64) {
         let current_time = timestamp::now_seconds();
         timestamp::update_global_time_for_test_secs(current_time + seconds);
@@ -116,8 +109,21 @@ module movedaoaddrx::test_utils {
     /// Initialize DAO registry for testing
     /// This mimics the init_module behavior for test environment
     public fun init_dao_registry_for_test() {
-        // Initialize activity tracker first (needed for DAO operations)
-        init_activity_tracker_for_test();
-        movedaoaddrx::dao_core_file::init_registry_for_test();
+        // Create the module account signer for @movedaoaddrx
+        let dao_module_signer = account::create_signer_for_test(@movedaoaddrx);
+        
+        // Check if registry already exists to avoid duplicate initialization
+        if (!exists<DAORegistry>(@movedaoaddrx)) {
+            move_to(&dao_module_signer, DAORegistry {
+                dao_addresses: vector::empty(),
+                total_daos: 0
+            });
+        }
+    }
+
+    // Mirror the DAORegistry struct from dao_core for test initialization
+    struct DAORegistry has key {
+        dao_addresses: vector<address>,
+        total_daos: u64
     }
 }

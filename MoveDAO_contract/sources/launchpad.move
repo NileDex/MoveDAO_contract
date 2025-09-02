@@ -1,5 +1,5 @@
 // Token launchpad - allows DAOs to create and sell their own tokens with vesting and whitelist features
-module dao_addr::launchpad {
+module movedaoaddrx::launchpad {
     use std::signer;
     use std::vector;
     use std::string::String;
@@ -8,11 +8,11 @@ module dao_addr::launchpad {
     use aptos_framework::coin::{Self, Coin};
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::timestamp;
-    use dao_addr::admin;
-    use dao_addr::errors;
-    use dao_addr::safe_math;
-    use dao_addr::time_security;
-    use dao_addr::input_validation;
+    use movedaoaddrx::admin;
+    use movedaoaddrx::errors;
+    use movedaoaddrx::safe_math;
+    use movedaoaddrx::time_security;
+    use movedaoaddrx::input_validation;
 
 
     // Launch phases
@@ -127,7 +127,7 @@ module dao_addr::launchpad {
     // Events
     #[event]
     struct LaunchpadCreated has drop, store {
-        dao_addr: address,
+        movedaoaddrx: address,
         project_name: String,
         total_supply: u64,
         created_at: u64,
@@ -177,7 +177,7 @@ module dao_addr::launchpad {
     // Initialize launchpad for a DAO
     public entry fun create_launchpad(
         admin: &signer,
-        dao_addr: address,
+        movedaoaddrx: address,
         project_name: String,
         token_name: String,
         total_supply: u64,
@@ -188,8 +188,8 @@ module dao_addr::launchpad {
         vesting_duration_months: u64,
         kyc_required: bool
     ) {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
-        assert!(!exists<LaunchpadConfig>(dao_addr), errors::launchpad_exists());
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
+        assert!(!exists<LaunchpadConfig>(movedaoaddrx), errors::launchpad_exists());
         
         // Comprehensive input validation
         assert!(total_supply > 0, errors::invalid_amount());
@@ -286,7 +286,7 @@ module dao_addr::launchpad {
         move_to(admin, lockup_settings);
 
         event::emit(LaunchpadCreated {
-            dao_addr,
+            movedaoaddrx,
             project_name,
             total_supply,
             created_at: now,
@@ -296,16 +296,16 @@ module dao_addr::launchpad {
     // Update launch timeline with enhanced timestamp security
     public entry fun update_timeline(
         admin: &signer,
-        dao_addr: address,
+        movedaoaddrx: address,
         whitelist_start: u64,
         presale_start: u64,
         public_sale_start: u64,
         sale_end: u64,
         vesting_start: u64
     ) acquires LaunchpadConfig {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
         
-        let config = borrow_global_mut<LaunchpadConfig>(dao_addr);
+        let config = borrow_global_mut<LaunchpadConfig>(movedaoaddrx);
         
         // Enhanced timestamp security validation
         let times = vector::empty<u64>();
@@ -338,12 +338,12 @@ module dao_addr::launchpad {
     // Add participants to whitelist with gas optimization
     public entry fun add_to_whitelist(
         admin: &signer,
-        dao_addr: address,
+        movedaoaddrx: address,
         participants: vector<address>,
         tiers: vector<u8>,
         max_allocations: vector<u64>
     ) acquires Whitelist {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
         
         let len = vector::length(&participants);
         assert!(len == vector::length(&tiers), errors::invalid_allocation());
@@ -355,7 +355,7 @@ module dao_addr::launchpad {
         // Input validation using the validation module
         input_validation::validate_address_list(&participants, 50);
         
-        let whitelist = borrow_global_mut<Whitelist>(dao_addr);
+        let whitelist = borrow_global_mut<Whitelist>(movedaoaddrx);
         let now = timestamp::now_seconds();
         let i = 0;
         
@@ -401,14 +401,14 @@ module dao_addr::launchpad {
     // Gas-optimized function for adding single participant
     public entry fun add_single_to_whitelist(
         admin: &signer,
-        dao_addr: address,
+        movedaoaddrx: address,
         participant: address,
         tier: u8,
         max_allocation: u64
     ) acquires Whitelist {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
         
-        let whitelist = borrow_global_mut<Whitelist>(dao_addr);
+        let whitelist = borrow_global_mut<Whitelist>(movedaoaddrx);
         assert!(!simple_map::contains_key(&whitelist.entries, &participant), errors::already_whitelisted());
         
         input_validation::validate_tier(tier);
@@ -436,13 +436,13 @@ module dao_addr::launchpad {
     // Update KYC status
     public entry fun update_kyc_status(
         admin: &signer,
-        dao_addr: address,
+        movedaoaddrx: address,
         participant: address,
         verified: bool
     ) acquires Whitelist {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
         
-        let whitelist = borrow_global_mut<Whitelist>(dao_addr);
+        let whitelist = borrow_global_mut<Whitelist>(movedaoaddrx);
         assert!(simple_map::contains_key(&whitelist.entries, &participant), errors::not_whitelisted());
         
         let entry = simple_map::borrow_mut(&mut whitelist.entries, &participant);
@@ -452,9 +452,9 @@ module dao_addr::launchpad {
     // Advance to next phase - ANYONE can call this to prevent admin manipulation
     public entry fun advance_phase(
         _caller: &signer,
-        dao_addr: address
+        movedaoaddrx: address
     ) acquires LaunchpadConfig {
-        let config = borrow_global_mut<LaunchpadConfig>(dao_addr);
+        let config = borrow_global_mut<LaunchpadConfig>(movedaoaddrx);
         let now = timestamp::now_seconds();
         let old_phase = config.current_phase;
         
@@ -482,11 +482,11 @@ module dao_addr::launchpad {
     // Purchase tokens
     public entry fun purchase_tokens(
         buyer: &signer,
-        dao_addr: address,
+        movedaoaddrx: address,
         token_amount: u64
     ) acquires LaunchpadConfig, Whitelist, PurchaseHistory, TokenReserve {
         let buyer_addr = signer::address_of(buyer);
-        let config = borrow_global_mut<LaunchpadConfig>(dao_addr);
+        let config = borrow_global_mut<LaunchpadConfig>(movedaoaddrx);
         let now = timestamp::now_seconds();
         
         // Auto-advance phases if needed to prevent manipulation
@@ -507,7 +507,7 @@ module dao_addr::launchpad {
         
         // Get buyer's tier and validate
         let (tier, max_allocation) = if (config.current_phase == PHASE_PRESALE) {
-            let whitelist = borrow_global<Whitelist>(dao_addr);
+            let whitelist = borrow_global<Whitelist>(movedaoaddrx);
             assert!(simple_map::contains_key(&whitelist.entries, &buyer_addr), errors::not_whitelisted());
             
             let entry = simple_map::borrow(&whitelist.entries, &buyer_addr);
@@ -520,7 +520,7 @@ module dao_addr::launchpad {
         };
         
         // Check allocation limits
-        let purchase_history = borrow_global_mut<PurchaseHistory>(dao_addr);
+        let purchase_history = borrow_global_mut<PurchaseHistory>(movedaoaddrx);
         let current_allocation = if (simple_map::contains_key(&purchase_history.buyer_allocations, &buyer_addr)) {
             *simple_map::borrow(&purchase_history.buyer_allocations, &buyer_addr)
         } else {
@@ -531,13 +531,12 @@ module dao_addr::launchpad {
             assert!(current_allocation + token_amount <= max_allocation, errors::exceeds_allocation());
         };
         
-        // Calculate payment required with overflow protection
+        // Calculate payment required with safe math to prevent overflow attacks
         assert!(config.price_per_token > 0, errors::invalid_amount());
-        assert!(token_amount <= (18446744073709551615u64 / config.price_per_token), errors::invalid_amount());
-        let payment_required = token_amount * config.price_per_token;
+        let payment_required = safe_math::safe_mul(token_amount, config.price_per_token);
         
         // Check token availability
-        let token_reserve = borrow_global_mut<TokenReserve>(dao_addr);
+        let token_reserve = borrow_global_mut<TokenReserve>(movedaoaddrx);
         if (config.current_phase == PHASE_PRESALE) {
             assert!(token_amount <= token_reserve.reserved_for_presale, errors::insufficient_tokens());
             token_reserve.reserved_for_presale = token_reserve.reserved_for_presale - token_amount;
@@ -561,21 +560,19 @@ module dao_addr::launchpad {
         };
         
         vector::push_back(&mut purchase_history.purchases, purchase);
-        purchase_history.total_purchases = purchase_history.total_purchases + 1;
+        purchase_history.total_purchases = safe_math::safe_add(purchase_history.total_purchases, 1);
         
         if (simple_map::contains_key(&purchase_history.buyer_allocations, &buyer_addr)) {
             let allocation = simple_map::borrow_mut(&mut purchase_history.buyer_allocations, &buyer_addr);
-            *allocation = *allocation + token_amount;
+            *allocation = safe_math::safe_add(*allocation, token_amount);
         } else {
             simple_map::add(&mut purchase_history.buyer_allocations, buyer_addr, token_amount);
         };
         
-        // Update config with overflow protection
-        assert!(config.tokens_sold <= (18446744073709551615u64 - token_amount), errors::invalid_amount());
-        assert!(config.funds_raised <= (18446744073709551615u64 - payment_required), errors::invalid_amount());
-        config.tokens_sold = config.tokens_sold + token_amount;
-        config.funds_raised = config.funds_raised + payment_required;
-        token_reserve.available_tokens = token_reserve.available_tokens - token_amount;
+        // Update config with safe math for overflow protection
+        config.tokens_sold = safe_math::safe_add(config.tokens_sold, token_amount);
+        config.funds_raised = safe_math::safe_add(config.funds_raised, payment_required);
+        token_reserve.available_tokens = safe_math::safe_sub(token_reserve.available_tokens, token_amount);
         
         event::emit(TokensPurchased {
             buyer: buyer_addr,
@@ -590,16 +587,16 @@ module dao_addr::launchpad {
     // Create vesting schedule for team/advisors
     public entry fun create_vesting_schedule(
         admin: &signer,
-        dao_addr: address,
+        movedaoaddrx: address,
         beneficiary: address,
         amount: u64,
         cliff_duration: u64,
         vesting_duration: u64
     ) acquires VestingStorage, TokenReserve {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
         
-        let vesting_storage = borrow_global_mut<VestingStorage>(dao_addr);
-        let token_reserve = borrow_global_mut<TokenReserve>(dao_addr);
+        let vesting_storage = borrow_global_mut<VestingStorage>(movedaoaddrx);
+        let token_reserve = borrow_global_mut<TokenReserve>(movedaoaddrx);
         let now = timestamp::now_seconds();
         
         assert!(!simple_map::contains_key(&vesting_storage.schedules, &beneficiary), errors::already_whitelisted());
@@ -632,10 +629,10 @@ module dao_addr::launchpad {
     // Claim vested tokens
     public entry fun claim_vested_tokens(
         beneficiary: &signer,
-        dao_addr: address
+        movedaoaddrx: address
     ) acquires VestingStorage {
         let beneficiary_addr = signer::address_of(beneficiary);
-        let vesting_storage = borrow_global_mut<VestingStorage>(dao_addr);
+        let vesting_storage = borrow_global_mut<VestingStorage>(movedaoaddrx);
         let now = timestamp::now_seconds();
         
         assert!(simple_map::contains_key(&vesting_storage.schedules, &beneficiary_addr), errors::vesting_not_started());
@@ -682,8 +679,8 @@ module dao_addr::launchpad {
 
     // View functions
     #[view]
-    public fun get_launchpad_info(dao_addr: address): (String, String, u64, u64, u8, bool) acquires LaunchpadConfig {
-        let config = borrow_global<LaunchpadConfig>(dao_addr);
+    public fun get_launchpad_info(movedaoaddrx: address): (String, String, u64, u64, u8, bool) acquires LaunchpadConfig {
+        let config = borrow_global<LaunchpadConfig>(movedaoaddrx);
         (
             config.project_name,
             config.token_name,
@@ -695,8 +692,8 @@ module dao_addr::launchpad {
     }
 
     #[view]
-    public fun get_sale_stats(dao_addr: address): (u64, u64, u64, u64) acquires LaunchpadConfig {
-        let config = borrow_global<LaunchpadConfig>(dao_addr);
+    public fun get_sale_stats(movedaoaddrx: address): (u64, u64, u64, u64) acquires LaunchpadConfig {
+        let config = borrow_global<LaunchpadConfig>(movedaoaddrx);
         let total_allocation = config.presale_allocation + config.public_allocation;
         let percentage_sold = if (total_allocation > 0) {
             (config.tokens_sold * 100) / total_allocation
@@ -712,15 +709,15 @@ module dao_addr::launchpad {
     }
 
     #[view]
-    public fun is_whitelisted(dao_addr: address, participant: address): bool acquires Whitelist {
-        if (!exists<Whitelist>(dao_addr)) return false;
-        let whitelist = borrow_global<Whitelist>(dao_addr);
+    public fun is_whitelisted(movedaoaddrx: address, participant: address): bool acquires Whitelist {
+        if (!exists<Whitelist>(movedaoaddrx)) return false;
+        let whitelist = borrow_global<Whitelist>(movedaoaddrx);
         simple_map::contains_key(&whitelist.entries, &participant)
     }
 
     #[view]
-    public fun get_whitelist_info(dao_addr: address, participant: address): (u8, u64, bool) acquires Whitelist {
-        let whitelist = borrow_global<Whitelist>(dao_addr);
+    public fun get_whitelist_info(movedaoaddrx: address, participant: address): (u8, u64, bool) acquires Whitelist {
+        let whitelist = borrow_global<Whitelist>(movedaoaddrx);
         assert!(simple_map::contains_key(&whitelist.entries, &participant), errors::not_whitelisted());
         
         let entry = simple_map::borrow(&whitelist.entries, &participant);
@@ -728,9 +725,9 @@ module dao_addr::launchpad {
     }
 
     #[view]
-    public fun get_purchase_history(dao_addr: address, buyer: address): u64 acquires PurchaseHistory {
-        if (!exists<PurchaseHistory>(dao_addr)) return 0;
-        let history = borrow_global<PurchaseHistory>(dao_addr);
+    public fun get_purchase_history(movedaoaddrx: address, buyer: address): u64 acquires PurchaseHistory {
+        if (!exists<PurchaseHistory>(movedaoaddrx)) return 0;
+        let history = borrow_global<PurchaseHistory>(movedaoaddrx);
         if (simple_map::contains_key(&history.buyer_allocations, &buyer)) {
             *simple_map::borrow(&history.buyer_allocations, &buyer)
         } else {
@@ -739,8 +736,8 @@ module dao_addr::launchpad {
     }
 
     #[view]
-    public fun get_vesting_info(dao_addr: address, beneficiary: address): (u64, u64, u64) acquires VestingStorage {
-        let vesting_storage = borrow_global<VestingStorage>(dao_addr);
+    public fun get_vesting_info(movedaoaddrx: address, beneficiary: address): (u64, u64, u64) acquires VestingStorage {
+        let vesting_storage = borrow_global<VestingStorage>(movedaoaddrx);
         if (!simple_map::contains_key(&vesting_storage.schedules, &beneficiary)) {
             return (0, 0, 0)
         };
@@ -753,8 +750,8 @@ module dao_addr::launchpad {
     }
 
     #[view]
-    public fun get_timeline(dao_addr: address): (u64, u64, u64, u64, u64) acquires LaunchpadConfig {
-        let config = borrow_global<LaunchpadConfig>(dao_addr);
+    public fun get_timeline(movedaoaddrx: address): (u64, u64, u64, u64, u64) acquires LaunchpadConfig {
+        let config = borrow_global<LaunchpadConfig>(movedaoaddrx);
         (
             config.whitelist_start,
             config.presale_start,
@@ -767,19 +764,19 @@ module dao_addr::launchpad {
     // Emergency functions
     public entry fun emergency_pause(
         admin: &signer,
-        dao_addr: address
+        movedaoaddrx: address
     ) acquires LaunchpadConfig {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
-        let config = borrow_global_mut<LaunchpadConfig>(dao_addr);
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
+        let config = borrow_global_mut<LaunchpadConfig>(movedaoaddrx);
         config.is_active = false;
     }
 
     public entry fun emergency_resume(
         admin: &signer,
-        dao_addr: address
+        movedaoaddrx: address
     ) acquires LaunchpadConfig {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
-        let config = borrow_global_mut<LaunchpadConfig>(dao_addr);
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
+        let config = borrow_global_mut<LaunchpadConfig>(movedaoaddrx);
         config.is_active = true;
     }
 

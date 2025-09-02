@@ -1,12 +1,12 @@
 // Council system - manages trusted DAO members who can have special governance roles and permissions
-module dao_addr::council {
+module movedaoaddrx::council {
     use std::vector;
     use std::signer;
     use std::error;
     use aptos_framework::object::{Self, Object};
     use aptos_std::table::{Self, Table};
-    use dao_addr::admin;
-    use dao_addr::errors;
+    use movedaoaddrx::admin;
+    use movedaoaddrx::errors;
 
     struct CouncilConfig has key {
         members: Table<address, bool>,
@@ -49,9 +49,9 @@ module dao_addr::council {
     }
 
     // Direct object-based functions
-    public fun add_council_member_to_object(admin: &signer, dao_addr: address, council_obj: Object<CouncilConfig>, new_member: address) acquires CouncilConfig {
+    public fun add_council_member_to_object(admin: &signer, movedaoaddrx: address, council_obj: Object<CouncilConfig>, new_member: address) acquires CouncilConfig {
         let admin_addr = signer::address_of(admin);
-        errors::require_admin(admin::is_admin(dao_addr, admin_addr));
+        errors::require_admin(admin::is_admin(movedaoaddrx, admin_addr));
 
         let config = borrow_global_mut<CouncilConfig>(object::object_address(&council_obj));
         assert!(config.member_count < config.max_members, errors::max_members_constraint());
@@ -61,9 +61,9 @@ module dao_addr::council {
         config.member_count = config.member_count + 1;
     }
 
-    public fun remove_council_member_from_object(admin: &signer, dao_addr: address, council_obj: Object<CouncilConfig>, member: address) acquires CouncilConfig {
+    public fun remove_council_member_from_object(admin: &signer, movedaoaddrx: address, council_obj: Object<CouncilConfig>, member: address) acquires CouncilConfig {
         let admin_addr = signer::address_of(admin);
-        errors::require_admin(admin::is_admin(dao_addr, admin_addr));
+        errors::require_admin(admin::is_admin(movedaoaddrx, admin_addr));
 
         let config = borrow_global_mut<CouncilConfig>(object::object_address(&council_obj));
         errors::require_exists(table::contains(&config.members, member), errors::council_member_not_found());
@@ -95,8 +95,8 @@ module dao_addr::council {
     public fun add_council_member(admin: &signer, _new_member: address) {
         // DEPRECATED: This function is deprecated and does nothing.
         // Use add_council_member_to_object instead for proper functionality.
-        let dao_addr = signer::address_of(admin);
-        errors::require_admin(admin::is_admin(dao_addr, dao_addr));
+        let movedaoaddrx = signer::address_of(admin);
+        errors::require_admin(admin::is_admin(movedaoaddrx, movedaoaddrx));
         
         // Safe no-op instead of abort to prevent DoS attacks
         // Users should migrate to object-based functions
@@ -105,8 +105,8 @@ module dao_addr::council {
     public fun remove_council_member(admin: &signer, _member: address) {
         // DEPRECATED: This function is deprecated and does nothing.
         // Use remove_council_member_from_object instead for proper functionality.
-        let dao_addr = signer::address_of(admin);
-        errors::require_admin(admin::is_admin(dao_addr, dao_addr));
+        let movedaoaddrx = signer::address_of(admin);
+        errors::require_admin(admin::is_admin(movedaoaddrx, movedaoaddrx));
         
         // Safe no-op instead of abort to prevent DoS attacks
         // Users should migrate to object-based functions
@@ -115,24 +115,24 @@ module dao_addr::council {
     public fun replace_council_member(admin: &signer, _old_member: address, _new_member: address) {
         // DEPRECATED: This function is deprecated and does nothing.
         // Use remove_council_member_from_object + add_council_member_to_object instead.
-        let dao_addr = signer::address_of(admin);
-        errors::require_admin(admin::is_admin(dao_addr, dao_addr));
+        let movedaoaddrx = signer::address_of(admin);
+        errors::require_admin(admin::is_admin(movedaoaddrx, movedaoaddrx));
         
         // Safe no-op instead of abort to prevent DoS attacks
         // Users should migrate to object-based functions
     }
 
-    public fun get_council_members(dao_addr: address): vector<address> {
+    public fun get_council_members(movedaoaddrx: address): vector<address> {
         // Note: For better performance, use object-based functions and table queries
         // This legacy function is maintained for compatibility but is less efficient
-        let _ = dao_addr;
+        let _ = movedaoaddrx;
         vector::empty() // Recommend using table-based member queries instead
     }
 
-    public fun is_council_member(dao_addr: address, member: address): bool {
+    public fun is_council_member(movedaoaddrx: address, member: address): bool {
         // Note: For better performance, use is_council_member_in_object with proper object reference
         // This legacy function is maintained for compatibility but is less efficient
-        let _ = dao_addr;
+        let _ = movedaoaddrx;
         let _ = member;
         false // Recommend using is_council_member_in_object instead
     }

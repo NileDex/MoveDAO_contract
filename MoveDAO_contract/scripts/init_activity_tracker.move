@@ -1,5 +1,5 @@
 script {
-    use dao_addr::activity_tracker;
+    use movedaoaddrx::activity_tracker;
 
     fun main(account: &signer) {
         // Initialize the global activity tracker

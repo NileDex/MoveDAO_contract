@@ -1,16 +1,17 @@
 // Input validation - validates user inputs like strings, addresses, and parameters to prevent invalid data
-module dao_addr::input_validation {
+module movedaoaddrx::input_validation {
     use std::string::{Self, String};
     use std::vector;
-    use dao_addr::errors;
+    use movedaoaddrx::errors;
 
     // Validation constants
-    const MIN_NAME_LENGTH: u64 = 3;
+    const MIN_NAME_LENGTH: u64 = 2;
     const MAX_NAME_LENGTH: u64 = 100;
     const MIN_DESCRIPTION_LENGTH: u64 = 10;
     const MAX_DESCRIPTION_LENGTH: u64 = 2000;
-    const MAX_LOGO_SIZE: u64 = 1048576; // 1MB
+    const MAX_LOGO_SIZE: u64 = 2097152; // 2MB
     const MAX_BACKGROUND_SIZE: u64 = 5242880; // 5MB
+    const MAX_URL_LENGTH: u64 = 500; // 500 characters for URLs
     const MIN_SUPPLY: u64 = 1000;
     const MAX_SUPPLY: u64 = 1000000000000; // 1 trillion
     const MIN_PRICE: u64 = 1;
@@ -55,6 +56,51 @@ module dao_addr::input_validation {
     /// Validate background image
     public fun validate_background(background: &vector<u8>) {
         validate_image_size(background, MAX_BACKGROUND_SIZE);
+    }
+
+    /// Validate image URL
+    public fun validate_image_url(url: &String) {
+        let length = string::length(url);
+        assert!(length > 0, errors::invalid_amount());
+        assert!(length <= MAX_URL_LENGTH, errors::invalid_amount());
+        
+        // Basic URL validation - check if it starts with http:// or https://
+        let bytes = string::bytes(url);
+        let url_bytes = *bytes;
+        
+        // Check minimum length for a valid URL
+        assert!(vector::length(&url_bytes) >= 7, errors::invalid_amount()); // minimum "http://"
+        
+        // Check if it starts with http:// or https://
+        let valid_start = false;
+        if (vector::length(&url_bytes) >= 7) {
+            // Check for "http://"
+            if (*vector::borrow(&url_bytes, 0) == 104 && // 'h'
+                *vector::borrow(&url_bytes, 1) == 116 && // 't'
+                *vector::borrow(&url_bytes, 2) == 116 && // 't'
+                *vector::borrow(&url_bytes, 3) == 112 && // 'p'
+                *vector::borrow(&url_bytes, 4) == 58 &&  // ':'
+                *vector::borrow(&url_bytes, 5) == 47 &&  // '/'
+                *vector::borrow(&url_bytes, 6) == 47) {  // '/'
+                valid_start = true;
+            }
+        };
+        
+        if (!valid_start && vector::length(&url_bytes) >= 8) {
+            // Check for "https://"
+            if (*vector::borrow(&url_bytes, 0) == 104 && // 'h'
+                *vector::borrow(&url_bytes, 1) == 116 && // 't'
+                *vector::borrow(&url_bytes, 2) == 116 && // 't'
+                *vector::borrow(&url_bytes, 3) == 112 && // 'p'
+                *vector::borrow(&url_bytes, 4) == 115 && // 's'
+                *vector::borrow(&url_bytes, 5) == 58 &&  // ':'
+                *vector::borrow(&url_bytes, 6) == 47 &&  // '/'
+                *vector::borrow(&url_bytes, 7) == 47) {  // '/'
+                valid_start = true;
+            }
+        };
+        
+        assert!(valid_start, errors::invalid_amount());
     }
 
     /// Validate token supply
@@ -154,7 +200,7 @@ module dao_addr::input_validation {
     }
 
     #[test]
-    #[expected_failure(abort_code = 4, location = dao_addr::input_validation)]
+    #[expected_failure(abort_code = 4, location = movedaoaddrx::input_validation)]
     public fun test_validate_dao_name_too_short() {
         let short_name = string::utf8(b"Hi");
         validate_dao_name(&short_name);
@@ -170,7 +216,7 @@ module dao_addr::input_validation {
     }
 
     #[test]
-    #[expected_failure(abort_code = 4, location = dao_addr::input_validation)]
+    #[expected_failure(abort_code = 4, location = movedaoaddrx::input_validation)]
     public fun test_validate_address_list_duplicates() {
         let addresses = vector::empty<address>();
         vector::push_back(&mut addresses, @0x1);

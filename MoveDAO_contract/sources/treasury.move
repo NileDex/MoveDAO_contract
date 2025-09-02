@@ -1,22 +1,24 @@
 // Treasury system - manages DAO funds with secure deposit/withdrawal and reentrancy protection
-module dao_addr::treasury {
+module movedaoaddrx::treasury {
     use std::signer;
     use std::event;
     use std::vector;
+    use std::string;
     use aptos_framework::coin;
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::object::{Self, Object};
     use aptos_framework::timestamp;
-    use dao_addr::admin;
-    use dao_addr::membership;
-    use dao_addr::errors;
+    use movedaoaddrx::admin;
+    use movedaoaddrx::membership;
+    use movedaoaddrx::errors;
+    use movedaoaddrx::activity_tracker;
 
-    friend dao_addr::dao_core;
+    friend movedaoaddrx::dao_core_file;
 
     // Activity tracking events
     #[event]
     struct TreasuryDepositEvent has drop, store {
-        dao_address: address,
+        movedaoaddrxess: address,
         depositor: address,
         amount: u64,
         new_balance: u64,
@@ -26,7 +28,7 @@ module dao_addr::treasury {
 
     #[event]
     struct TreasuryWithdrawalEvent has drop, store {
-        dao_address: address,
+        movedaoaddrxess: address,
         withdrawer: address,
         amount: u64,
         remaining_balance: u64,
@@ -36,7 +38,7 @@ module dao_addr::treasury {
 
     #[event]
     struct TreasuryRewardWithdrawalEvent has drop, store {
-        dao_address: address,
+        movedaoaddrxess: address,
         recipient: address,
         amount: u64,
         remaining_balance: u64,
@@ -54,8 +56,9 @@ module dao_addr::treasury {
         daily_withdrawal_limit: u64,
         last_withdrawal_day: u64,
         daily_withdrawn: u64,
-        dao_address: address, // Track which DAO this treasury belongs to
+        movedaoaddrxess: address, // Track which DAO this treasury belongs to
         allow_public_deposits: bool, // Allow non-members to deposit (disabled by default)
+        last_major_withdrawal_time: u64, // Track last significant withdrawal for rolling window
     }
 
     public fun init_treasury(account: &signer): Object<Treasury> {
@@ -67,8 +70,9 @@ module dao_addr::treasury {
             daily_withdrawal_limit: 1000000000, // 10 APT in octas
             last_withdrawal_day: 0,
             daily_withdrawn: 0,
-            dao_address: addr, // Store the DAO address
+            movedaoaddrxess: addr, // Store the DAO address
             allow_public_deposits: false, // Default to member-only deposits (secure)
+            last_major_withdrawal_time: 0, // Initialize withdrawal tracking
         };
 
         // Initialize reentrancy guard
@@ -87,12 +91,12 @@ module dao_addr::treasury {
     public entry fun deposit_to_object(account: &signer, treasury_obj: Object<Treasury>, amount: u64) acquires Treasury {
         let depositor = signer::address_of(account);
         let treasury = borrow_global_mut<Treasury>(object::object_address(&treasury_obj));
-        let dao_addr = treasury.dao_address;
+        let movedaoaddrx = treasury.movedaoaddrxess;
         
         // MEMBER-ONLY DEPOSITS: Only members or admins can deposit
         // This ensures only committed community members can fund the treasury
-        if (!admin::is_admin(dao_addr, depositor)) {
-            assert!(membership::is_member(dao_addr, depositor), errors::not_member());
+        if (!admin::is_admin(movedaoaddrx, depositor)) {
+            assert!(membership::is_member(movedaoaddrx, depositor), errors::not_member());
         };
         
         // Validate amount
@@ -103,17 +107,30 @@ module dao_addr::treasury {
         
         // Emit deposit event
         event::emit(TreasuryDepositEvent {
-            dao_address: dao_addr,
+            movedaoaddrxess: movedaoaddrx,
             depositor,
             amount,
             new_balance: coin::value(&treasury.balance),
             timestamp: timestamp::now_seconds(),
             transaction_hash: vector::empty(), // TODO: Add actual transaction hash
         });
+
+        // Log treasury deposit activity
+        activity_tracker::emit_activity(
+            movedaoaddrx,                    // dao_address
+            9,                               // activity_type: TREASURY_DEPOSIT
+            depositor,                       // user_address
+            string::utf8(b"Treasury Deposit"),                    // title
+            string::utf8(b"Deposited tokens to DAO treasury"),   // description
+            amount,                          // amount
+            vector::empty<u8>(),             // metadata (empty for now)
+            vector::empty<u8>(),             // transaction_hash (will be filled by the tracker)
+            0                                // block_number (will be filled by the tracker)
+        );
     }
 
-    public entry fun withdraw_from_object(account: &signer, dao_addr: address, treasury_obj: Object<Treasury>, amount: u64) acquires Treasury, ReentrancyGuard {
-        assert!(admin::is_admin(dao_addr, signer::address_of(account)), errors::not_admin());
+    public entry fun withdraw_from_object(account: &signer, movedaoaddrx: address, treasury_obj: Object<Treasury>, amount: u64) acquires Treasury, ReentrancyGuard {
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(account)), errors::not_admin());
         
         let treasury_addr = object::object_address(&treasury_obj);
         
@@ -124,12 +141,26 @@ module dao_addr::treasury {
         
         let treasury = borrow_global_mut<Treasury>(treasury_addr);
         
-        // Check daily withdrawal limits
-        let current_day = timestamp::now_seconds() / 86400; // seconds in a day
+        // Check daily withdrawal limits using rolling 24-hour window to prevent bypass attacks
+        let current_time = timestamp::now_seconds();
+        let rolling_window_seconds = 86400; // 24 hours
+        
+        // Reset withdrawal counter if 24 hours have passed since last major withdrawal
+        if (current_time >= treasury.last_major_withdrawal_time + rolling_window_seconds) {
+            treasury.daily_withdrawn = 0;
+            treasury.last_major_withdrawal_time = current_time;
+        };
+        
+        // Also maintain the original daily reset for backward compatibility
+        let current_day = current_time / 86400;
         if (treasury.last_withdrawal_day != current_day) {
             treasury.last_withdrawal_day = current_day;
-            treasury.daily_withdrawn = 0;
+            // Only reset if the rolling window hasn't been more restrictive
+            if (current_time >= treasury.last_major_withdrawal_time + rolling_window_seconds) {
+                treasury.daily_withdrawn = 0;
+            };
         };
+        
         assert!(treasury.daily_withdrawn + amount <= treasury.daily_withdrawal_limit, errors::withdrawal_limit_exceeded());
         treasury.daily_withdrawn = treasury.daily_withdrawn + amount;
         
@@ -146,7 +177,7 @@ module dao_addr::treasury {
 
         // Emit withdrawal event
         event::emit(TreasuryWithdrawalEvent {
-            dao_address: dao_addr,
+            movedaoaddrxess: movedaoaddrx,
             withdrawer: recipient,
             amount,
             remaining_balance: coin::value(&treasury.balance),
@@ -182,7 +213,7 @@ module dao_addr::treasury {
 
         // Emit reward withdrawal event
         event::emit(TreasuryRewardWithdrawalEvent {
-            dao_address: object::object_address(&treasury_obj),
+            movedaoaddrxess: object::object_address(&treasury_obj),
             recipient,
             amount,
             remaining_balance: coin::value(&treasury.balance),
@@ -209,7 +240,7 @@ module dao_addr::treasury {
             treasury.daily_withdrawal_limit,
             treasury.last_withdrawal_day,
             treasury.daily_withdrawn,
-            treasury.dao_address,
+            treasury.movedaoaddrxess,
             treasury.allow_public_deposits
         )
     }
@@ -247,8 +278,8 @@ module dao_addr::treasury {
     }
 
     // Admin functions for treasury management
-    public entry fun set_public_deposits(admin: &signer, dao_addr: address, treasury_obj: Object<Treasury>, allow: bool) acquires Treasury {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
+    public entry fun set_public_deposits(admin: &signer, movedaoaddrx: address, treasury_obj: Object<Treasury>, allow: bool) acquires Treasury {
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
         
         let treasury = borrow_global_mut<Treasury>(object::object_address(&treasury_obj));
         treasury.allow_public_deposits = allow;
@@ -262,17 +293,17 @@ module dao_addr::treasury {
 
     // Legacy functions - these operate directly on DAO addresses without circular dependency
     // These functions assume treasury exists at the DAO address for backward compatibility
-    public entry fun deposit(account: &signer, dao_addr: address, amount: u64) acquires Treasury {
+    public entry fun deposit(account: &signer, movedaoaddrx: address, amount: u64) acquires Treasury {
         let depositor = signer::address_of(account);
-        let treasury_addr = get_legacy_treasury_addr(dao_addr);
+        let treasury_addr = get_legacy_treasury_addr(movedaoaddrx);
         assert!(exists<Treasury>(treasury_addr), errors::not_found());
         
         let treasury = borrow_global_mut<Treasury>(treasury_addr);
         
         // MEMBER-ONLY DEPOSITS: Only members or admins can deposit
         // This ensures only committed community members can fund the treasury
-        if (!admin::is_admin(dao_addr, depositor)) {
-            assert!(membership::is_member(dao_addr, depositor), errors::not_member());
+        if (!admin::is_admin(movedaoaddrx, depositor)) {
+            assert!(membership::is_member(movedaoaddrx, depositor), errors::not_member());
         };
         
         // Validate amount
@@ -283,19 +314,32 @@ module dao_addr::treasury {
         
         // Emit deposit event
         event::emit(TreasuryDepositEvent {
-            dao_address: dao_addr,
+            movedaoaddrxess: movedaoaddrx,
             depositor,
             amount,
             new_balance: coin::value(&treasury.balance),
             timestamp: timestamp::now_seconds(),
             transaction_hash: vector::empty(), // TODO: Add actual transaction hash
         });
+
+        // Log treasury deposit activity (for legacy function consistency)
+        activity_tracker::emit_activity(
+            movedaoaddrx,                    // dao_address
+            9,                               // activity_type: TREASURY_DEPOSIT
+            depositor,                       // user_address
+            string::utf8(b"Treasury Deposit"),                    // title
+            string::utf8(b"Deposited tokens to DAO treasury"),   // description
+            amount,                          // amount
+            vector::empty<u8>(),             // metadata (empty for now)
+            vector::empty<u8>(),             // transaction_hash (will be filled by the tracker)
+            0                                // block_number (will be filled by the tracker)
+        );
     }
 
-    public entry fun withdraw(account: &signer, dao_addr: address, amount: u64) acquires Treasury, ReentrancyGuard {
-        assert!(admin::is_admin(dao_addr, signer::address_of(account)), errors::not_admin());
+    public entry fun withdraw(account: &signer, movedaoaddrx: address, amount: u64) acquires Treasury, ReentrancyGuard {
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(account)), errors::not_admin());
         
-        let treasury_addr = get_legacy_treasury_addr(dao_addr);
+        let treasury_addr = get_legacy_treasury_addr(movedaoaddrx);
         
         // Reentrancy protection
         let guard = borrow_global_mut<ReentrancyGuard>(treasury_addr);
@@ -326,7 +370,7 @@ module dao_addr::treasury {
 
         // Emit withdrawal event
         event::emit(TreasuryWithdrawalEvent {
-            dao_address: dao_addr,
+            movedaoaddrxess: movedaoaddrx,
             withdrawer: recipient,
             amount,
             remaining_balance: coin::value(&treasury.balance),
@@ -339,8 +383,8 @@ module dao_addr::treasury {
     }
 
     #[view]
-    public fun get_balance(dao_addr: address): u64 acquires Treasury {
-        let treasury_addr = get_legacy_treasury_addr(dao_addr);
+    public fun get_balance(movedaoaddrx: address): u64 acquires Treasury {
+        let treasury_addr = get_legacy_treasury_addr(movedaoaddrx);
         if (!exists<Treasury>(treasury_addr)) return 0;
         
         let treasury = borrow_global<Treasury>(treasury_addr);
@@ -349,9 +393,9 @@ module dao_addr::treasury {
 
     // Helper function to determine treasury address for legacy functions
     #[view]
-    fun get_legacy_treasury_addr(dao_addr: address): address {
+    fun get_legacy_treasury_addr(movedaoaddrx: address): address {
         // For object-based treasuries created through dao_core, we need to compute the object address
         // This is a simplified approach - in production, you might want to store this mapping
-        dao_addr // Simplified: assume treasury is at DAO address for legacy compatibility
+        movedaoaddrx // Simplified: assume treasury is at DAO address for legacy compatibility
     }
 }

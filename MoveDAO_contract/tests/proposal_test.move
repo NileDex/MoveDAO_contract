@@ -1,5 +1,5 @@
 #[test_only]
-module dao_addr::proposal_tests {
+module movedaoaddrx::proposal_tests {
     use std::vector;
     use std::string;
     use std::signer;
@@ -7,11 +7,11 @@ module dao_addr::proposal_tests {
     use aptos_framework::account;
     use aptos_framework::coin;
     use aptos_framework::aptos_coin;
-    use dao_addr::dao_core;
-    use dao_addr::proposal;
-    use dao_addr::membership;
-    use dao_addr::staking;
-    use dao_addr::test_utils;
+    use movedaoaddrx::dao_core_file;
+    use movedaoaddrx::proposal;
+    use movedaoaddrx::membership;
+    use movedaoaddrx::staking;
+    use movedaoaddrx::test_utils;
 
     const PROPOSER: address = @0xA11CE;
     const VOTER1: address = @0xB0B;
@@ -22,17 +22,18 @@ module dao_addr::proposal_tests {
         timestamp::set_time_has_started_for_testing(aptos_framework);
 
         account::create_account_for_test(@0x1);
-        account::create_account_for_test(@dao_addr);
+        account::create_account_for_test(@movedaoaddrx);
         account::create_account_for_test(PROPOSER);
         account::create_account_for_test(VOTER1);
         account::create_account_for_test(VOTER2);
 
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(dao_admin);
+        dao_core_file::init_registry_for_test();
 
         let initial_council = vector::empty<address>();
         vector::push_back(&mut initial_council, signer::address_of(dao_admin));
-        dao_core::create_dao(
+        dao_core_file::create_dao(
             dao_admin,
             string::utf8(b"Test DAO"),
             string::utf8(b"Subname"),
@@ -40,8 +41,11 @@ module dao_addr::proposal_tests {
             b"logo",
             b"bg", 
             initial_council,
-            30
+            6000000  // 6 Move
         );
+
+        // Ensure proposal creation threshold matches test stakes
+        membership::update_min_proposal_stake(dao_admin, signer::address_of(dao_admin), 10000000);
 
         // Get the actual DAO address where data is stored
         let dao_addr = signer::address_of(dao_admin);
@@ -61,9 +65,9 @@ module dao_addr::proposal_tests {
         test_utils::mint_aptos(&voter1, 100000000000);
         test_utils::mint_aptos(&voter2, 100000000000);
 
-        staking::stake(&proposer, dao_addr, 200);  // Enough for proposal creation (30*5=150)
-        staking::stake(&voter1, dao_addr, 200);
-        staking::stake(&voter2, dao_addr, 200);
+        staking::stake(&proposer, dao_addr, 30000000);  // Enough for proposal creation (6000000*5=30000000)
+        staking::stake(&voter1, dao_addr, 6000000);
+        staking::stake(&voter2, dao_addr, 6000000);
 
         membership::join(&proposer, dao_addr);
         membership::join(&voter1, dao_addr);
@@ -72,7 +76,7 @@ module dao_addr::proposal_tests {
         dao_addr
     }
 
-    #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
+    #[test(aptos_framework = @0x1, dao_admin = @movedaoaddrx)]
     fun test_proposal_quorum_requirements(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 
@@ -173,7 +177,7 @@ module dao_addr::proposal_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
+    #[test(aptos_framework = @0x1, dao_admin = @movedaoaddrx)]
     fun test_proposal_lifecycle(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 
@@ -209,8 +213,8 @@ module dao_addr::proposal_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
-    #[expected_failure(abort_code = 6, location = dao_addr::proposal)] // errors::invalid_status() = 6
+    #[test(aptos_framework = @0x1, dao_admin = @movedaoaddrx)]
+    #[expected_failure(abort_code = 6, location = movedaoaddrx::proposal)] // errors::invalid_status() = 6
     fun test_cannot_vote_before_voting_period(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 
@@ -233,7 +237,7 @@ module dao_addr::proposal_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
+    #[test(aptos_framework = @0x1, dao_admin = @movedaoaddrx)]
     fun test_successful_proposal_execution(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 
@@ -271,8 +275,8 @@ module dao_addr::proposal_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
-    #[expected_failure(abort_code = 9, location = dao_addr::proposal)] // errors::not_authorized() = 9
+    #[test(aptos_framework = @0x1, dao_admin = @movedaoaddrx)]
+    #[expected_failure(abort_code = 9, location = movedaoaddrx::proposal)] // errors::not_authorized() = 9
     fun test_non_member_proposal_fails(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 
@@ -293,8 +297,8 @@ module dao_addr::proposal_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
-    #[expected_failure(abort_code = 202, location = dao_addr::proposal)] // errors::already_voted() = 202
+    #[test(aptos_framework = @0x1, dao_admin = @movedaoaddrx)]
+    #[expected_failure(abort_code = 202, location = movedaoaddrx::proposal)] // errors::already_voted() = 202
     fun test_cannot_vote_twice(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 
@@ -322,8 +326,8 @@ module dao_addr::proposal_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
-    #[expected_failure(abort_code = 201, location = dao_addr::proposal)] // errors::voting_ended() = 201
+    #[test(aptos_framework = @0x1, dao_admin = @movedaoaddrx)]
+    #[expected_failure(abort_code = 201, location = movedaoaddrx::proposal)] // errors::voting_ended() = 201
     fun test_cannot_vote_after_deadline(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 
@@ -351,7 +355,7 @@ module dao_addr::proposal_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
+    #[test(aptos_framework = @0x1, dao_admin = @movedaoaddrx)]
     fun test_proposal_cancellation(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 
@@ -395,7 +399,7 @@ module dao_addr::proposal_tests {
         test_utils::destroy_caps(aptos_framework);
     }
 
-    #[test(aptos_framework = @0x1, dao_admin = @dao_addr)]
+    #[test(aptos_framework = @0x1, dao_admin = @movedaoaddrx)]
     fun test_proposals_count(aptos_framework: &signer, dao_admin: &signer) {
         let dao_addr = setup_dao(aptos_framework, dao_admin);
 

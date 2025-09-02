@@ -1,5 +1,5 @@
 #[test_only]
-module dao_addr::council_tests {
+module movedaoaddrx::council_tests {
     use std::vector;
     use std::string;
     use std::signer;
@@ -7,9 +7,9 @@ module dao_addr::council_tests {
     use aptos_framework::timestamp;
     use aptos_framework::coin;
     use aptos_framework::aptos_coin;
-    use dao_addr::dao_core;
-    use dao_addr::council;
-    use dao_addr::test_utils;
+    use movedaoaddrx::dao_core_file;
+    use movedaoaddrx::council;
+    use movedaoaddrx::test_utils;
 
     const EASSERTION_FAILED: u64 = 200;
 
@@ -29,10 +29,11 @@ module dao_addr::council_tests {
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(alice);
         coin::register<aptos_coin::AptosCoin>(alice);
+        dao_core_file::init_registry_for_test();
 
         let initial_council = vector::empty<address>();
         vector::push_back(&mut initial_council, signer::address_of(alice));
-        dao_core::create_dao(
+        dao_core_file::create_dao(
             alice, 
             string::utf8(b"Test DAO"),
             string::utf8(b"Subname"), 
@@ -44,7 +45,7 @@ module dao_addr::council_tests {
         );
 
         let dao_addr = @0x123;
-        let council_obj = dao_core::get_council_object(dao_addr);
+        let council_obj = dao_core_file::get_council_object(dao_addr);
         
         // Add second member (alice is already initial member)
         council::add_council_member_to_object(alice, dao_addr, council_obj, @0x456);
@@ -65,7 +66,7 @@ module dao_addr::council_tests {
     }
 
     #[test(aptos_framework = @0x1, alice = @0x123, _bob = @0x456)]
-    #[expected_failure(abort_code = 327690, location = dao_addr::errors)] // errors::permission_denied(not_admin()) = 327690
+    #[expected_failure(abort_code = 327690, location = movedaoaddrx::errors)] // errors::permission_denied(not_admin()) = 327690
     fun test_non_admin_cannot_add_member(aptos_framework: &signer, alice: &signer, _bob: &signer) {
         account::create_account_for_test(@0x1);
         account::create_account_for_test(@0x123);
@@ -75,10 +76,11 @@ module dao_addr::council_tests {
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(alice);
         coin::register<aptos_coin::AptosCoin>(alice);
+        dao_core_file::init_registry_for_test();
 
         let initial_council = vector::empty<address>();
         vector::push_back(&mut initial_council, signer::address_of(alice));
-        dao_core::create_dao(
+        dao_core_file::create_dao(
             alice, 
             string::utf8(b"Test DAO"),
             string::utf8(b"Subname"), 
@@ -90,7 +92,7 @@ module dao_addr::council_tests {
         );
 
         let dao_addr = @0x123;
-        let council_obj = dao_core::get_council_object(dao_addr);
+        let council_obj = dao_core_file::get_council_object(dao_addr);
         let non_admin = account::create_signer_for_test(@0x999);
         council::add_council_member_to_object(&non_admin, dao_addr, council_obj, @0x456);
 
@@ -98,7 +100,7 @@ module dao_addr::council_tests {
     }
 
     #[test(aptos_framework = @0x1, alice = @0x123)]
-    #[expected_failure(abort_code = 393316, location = dao_addr::errors)] // errors::not_found_error(council_member_not_found()) = 393316
+    #[expected_failure(abort_code = 393316, location = movedaoaddrx::errors)] // errors::not_found_error(council_member_not_found()) = 393316
     fun test_min_members_constraint(aptos_framework: &signer, alice: &signer) {
         account::create_account_for_test(@0x1);
         account::create_account_for_test(@0x123);
@@ -107,10 +109,11 @@ module dao_addr::council_tests {
         test_utils::setup_aptos(aptos_framework);
         test_utils::setup_test_account(alice);
         coin::register<aptos_coin::AptosCoin>(alice);
+        dao_core_file::init_registry_for_test();
 
         let initial_council = vector::empty<address>();
         vector::push_back(&mut initial_council, signer::address_of(alice));
-        dao_core::create_dao(
+        dao_core_file::create_dao(
             alice, 
             string::utf8(b"Test DAO"),
             string::utf8(b"Subname"), 
@@ -122,7 +125,7 @@ module dao_addr::council_tests {
         );
 
         let dao_addr = @0x123;
-        let council_obj = dao_core::get_council_object(dao_addr);
+        let council_obj = dao_core_file::get_council_object(dao_addr);
         
         // Trying to remove non-existent member should fail
         council::remove_council_member_from_object(alice, dao_addr, council_obj, @0x999);

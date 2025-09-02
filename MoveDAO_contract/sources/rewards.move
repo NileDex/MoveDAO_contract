@@ -1,12 +1,12 @@
 // Rewards system - distributes incentives to members for voting, creating proposals, and active participation
-module dao_addr::rewards {
+module movedaoaddrx::rewards {
     use std::signer;
     use std::vector;
     use std::simple_map::{Self, SimpleMap};
     use std::event;
     use aptos_framework::timestamp;
-    use dao_addr::admin;
-    use dao_addr::errors;
+    use movedaoaddrx::admin;
+    use movedaoaddrx::errors;
 
 
     // Reward types
@@ -99,69 +99,75 @@ module dao_addr::rewards {
     }
 
     #[view]
-    public fun is_rewards_enabled(dao_addr: address): bool acquires RewardConfig {
-        if (!exists<RewardConfig>(dao_addr)) {
+    public fun is_rewards_enabled(movedaoaddrx: address): bool acquires RewardConfig {
+        if (!exists<RewardConfig>(movedaoaddrx)) {
             return false
         };
-        let config = borrow_global<RewardConfig>(dao_addr);
+        let config = borrow_global<RewardConfig>(movedaoaddrx);
         config.enabled
     }
 
+    // Check if rewards system is initialized for a DAO
+    #[view]
+    public fun is_rewards_initialized(movedaoaddrx: address): bool {
+        exists<RewardConfig>(movedaoaddrx) && exists<RewardTracker>(movedaoaddrx)
+    }
+
     public fun distribute_voting_reward(
-        dao_addr: address,
+        movedaoaddrx: address,
         voter: address,
         proposal_id: u64
     ) acquires RewardConfig, RewardTracker {
 
-        let config = borrow_global<RewardConfig>(dao_addr);
+        let config = borrow_global<RewardConfig>(movedaoaddrx);
         if (!config.enabled) return;
 
         let amount = config.voting_reward_per_vote;
         if (amount == 0) return;
 
-        create_pending_reward(dao_addr, voter, amount, REWARD_VOTING, proposal_id);
+        create_pending_reward(movedaoaddrx, voter, amount, REWARD_VOTING, proposal_id);
     }
 
     public fun distribute_proposal_creation_reward(
-        dao_addr: address,
+        movedaoaddrx: address,
         proposer: address,
         proposal_id: u64
     ) acquires RewardConfig, RewardTracker {
 
-        let config = borrow_global<RewardConfig>(dao_addr);
+        let config = borrow_global<RewardConfig>(movedaoaddrx);
         if (!config.enabled) return;
 
         let amount = config.proposal_creation_reward;
         if (amount == 0) return;
 
-        create_pending_reward(dao_addr, proposer, amount, REWARD_PROPOSAL_CREATION, proposal_id);
+        create_pending_reward(movedaoaddrx, proposer, amount, REWARD_PROPOSAL_CREATION, proposal_id);
     }
 
     public fun distribute_successful_proposal_reward(
-        dao_addr: address,
+        movedaoaddrx: address,
         proposer: address,
         proposal_id: u64
     ) acquires RewardConfig, RewardTracker {
 
-        let config = borrow_global<RewardConfig>(dao_addr);
+        let config = borrow_global<RewardConfig>(movedaoaddrx);
         if (!config.enabled) return;
 
         let amount = config.successful_proposal_reward;
         if (amount == 0) return;
 
-        create_pending_reward(dao_addr, proposer, amount, REWARD_PROPOSAL_SUCCESS, proposal_id);
+        create_pending_reward(movedaoaddrx, proposer, amount, REWARD_PROPOSAL_SUCCESS, proposal_id);
     }
 
     public entry fun distribute_staking_rewards(
         admin: &signer,
-        dao_addr: address,
+        movedaoaddrx: address,
         stakers: vector<address>,
         staked_amounts: vector<u64>
     ) acquires RewardConfig, RewardTracker {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
         assert!(vector::length(&stakers) == vector::length(&staked_amounts), errors::invalid_amount());
 
-        let config = borrow_global_mut<RewardConfig>(dao_addr);
+        let config = borrow_global_mut<RewardConfig>(movedaoaddrx);
         if (!config.enabled) return;
 
         let now = timestamp::now_seconds();
@@ -189,7 +195,7 @@ module dao_addr::rewards {
                 let reward_amount = (numerator_part1 * time_elapsed) / denominator;
                 
                 if (reward_amount > 0) {
-                    create_pending_reward(dao_addr, staker, reward_amount, REWARD_STAKING, 0);
+                    create_pending_reward(movedaoaddrx, staker, reward_amount, REWARD_STAKING, 0);
                     // Add overflow protection for total_distributed
                     assert!(total_distributed <= (18446744073709551615u64 - reward_amount), errors::invalid_amount());
                     total_distributed = total_distributed + reward_amount;
@@ -209,16 +215,16 @@ module dao_addr::rewards {
 
     public entry fun claim_rewards(
         account: &signer,
-        dao_addr: address
+        movedaoaddrx: address
     ) acquires RewardTracker, RewardConfig {
         let user_addr = signer::address_of(account);
         
         // Check if user has any claimable rewards before proceeding
-        let total_claimable = get_total_claimable(dao_addr, user_addr);
+        let total_claimable = get_total_claimable(movedaoaddrx, user_addr);
         assert!(total_claimable > 0, errors::nothing_to_claim());
         
         // Process the claim and get the actual amount claimed
-        let claimed_amount = claim_rewards_internal(dao_addr, user_addr);
+        let claimed_amount = claim_rewards_internal(movedaoaddrx, user_addr);
         
         // Only emit event if there were actually rewards to claim
         if (claimed_amount > 0) {
@@ -232,11 +238,11 @@ module dao_addr::rewards {
     }
 
     public fun claim_rewards_internal(
-        dao_addr: address,
+        movedaoaddrx: address,
         user_addr: address
     ): u64 acquires RewardTracker, RewardConfig {
-        let tracker = borrow_global_mut<RewardTracker>(dao_addr);
-        let config = borrow_global_mut<RewardConfig>(dao_addr);
+        let tracker = borrow_global_mut<RewardTracker>(movedaoaddrx);
+        let config = borrow_global_mut<RewardConfig>(movedaoaddrx);
         
         let total_claimable = 0;
         let rewards_len = vector::length(&tracker.pending_rewards);
@@ -280,15 +286,15 @@ module dao_addr::rewards {
 
     public entry fun update_reward_config(
         admin: &signer,
-        dao_addr: address,
+        movedaoaddrx: address,
         voting_reward_per_vote: u64,
         proposal_creation_reward: u64,
         successful_proposal_reward: u64,
         staking_yield_rate: u64
     ) acquires RewardConfig {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
         
-        let config = borrow_global_mut<RewardConfig>(dao_addr);
+        let config = borrow_global_mut<RewardConfig>(movedaoaddrx);
         config.voting_reward_per_vote = voting_reward_per_vote;
         config.proposal_creation_reward = proposal_creation_reward;
         config.successful_proposal_reward = successful_proposal_reward;
@@ -297,18 +303,18 @@ module dao_addr::rewards {
 
     public entry fun toggle_rewards(
         admin: &signer,
-        dao_addr: address,
+        movedaoaddrx: address,
         enabled: bool
     ) acquires RewardConfig {
-        assert!(admin::is_admin(dao_addr, signer::address_of(admin)), errors::not_admin());
+        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
         
-        let config = borrow_global_mut<RewardConfig>(dao_addr);
+        let config = borrow_global_mut<RewardConfig>(movedaoaddrx);
         config.enabled = enabled;
     }
 
     #[view]
-    public fun get_pending_rewards(dao_addr: address, user: address): vector<PendingReward> acquires RewardTracker {
-        let tracker = borrow_global<RewardTracker>(dao_addr);
+    public fun get_pending_rewards(movedaoaddrx: address, user: address): vector<PendingReward> acquires RewardTracker {
+        let tracker = borrow_global<RewardTracker>(movedaoaddrx);
         let user_rewards = vector::empty();
         let len = vector::length(&tracker.pending_rewards);
         let i = 0;
@@ -325,8 +331,8 @@ module dao_addr::rewards {
     }
 
     #[view]
-    public fun get_total_claimable(dao_addr: address, user: address): u64 acquires RewardTracker {
-        let tracker = borrow_global<RewardTracker>(dao_addr);
+    public fun get_total_claimable(movedaoaddrx: address, user: address): u64 acquires RewardTracker {
+        let tracker = borrow_global<RewardTracker>(movedaoaddrx);
         let total = 0;
         let len = vector::length(&tracker.pending_rewards);
         let i = 0;
@@ -343,8 +349,8 @@ module dao_addr::rewards {
     }
 
     #[view]
-    public fun get_total_claimed(dao_addr: address, user: address): u64 acquires RewardTracker {
-        let tracker = borrow_global<RewardTracker>(dao_addr);
+    public fun get_total_claimed(movedaoaddrx: address, user: address): u64 acquires RewardTracker {
+        let tracker = borrow_global<RewardTracker>(movedaoaddrx);
         if (simple_map::contains_key(&tracker.claimed_rewards, &user)) {
             *simple_map::borrow(&tracker.claimed_rewards, &user)
         } else {
@@ -353,8 +359,8 @@ module dao_addr::rewards {
     }
 
     #[view]
-    public fun get_reward_config(dao_addr: address): (u64, u64, u64, u64, u64, bool) acquires RewardConfig {
-        let config = borrow_global<RewardConfig>(dao_addr);
+    public fun get_reward_config(movedaoaddrx: address): (u64, u64, u64, u64, u64, bool) acquires RewardConfig {
+        let config = borrow_global<RewardConfig>(movedaoaddrx);
         (
             config.voting_reward_per_vote,
             config.proposal_creation_reward,
@@ -367,13 +373,13 @@ module dao_addr::rewards {
 
     // Helper functions
     fun create_pending_reward(
-        dao_addr: address,
+        movedaoaddrx: address,
         recipient: address,
         amount: u64,
         reward_type: u8,
         proposal_id: u64
     ) acquires RewardTracker {
-        let tracker = borrow_global_mut<RewardTracker>(dao_addr);
+        let tracker = borrow_global_mut<RewardTracker>(movedaoaddrx);
         let now = timestamp::now_seconds();
 
         let reward = PendingReward {

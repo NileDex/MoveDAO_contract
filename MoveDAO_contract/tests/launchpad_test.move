@@ -1,5 +1,5 @@
 #[test_only]
-module dao_addr::launchpad_test {
+module movedaoaddrx::launchpad_test {
     use std::vector;
     use std::string;
     use std::signer;
@@ -7,9 +7,9 @@ module dao_addr::launchpad_test {
     use aptos_framework::coin;
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::timestamp;
-    use dao_addr::dao_core;
-    use dao_addr::launchpad;
-    use dao_addr::test_utils;
+    use movedaoaddrx::dao_core_file;
+    use movedaoaddrx::launchpad;
+    use movedaoaddrx::test_utils;
 
     const EASSERTION_FAILED: u64 = 2000;
     const TEST_DAO_ADMIN: address = @0x123;
@@ -19,7 +19,8 @@ module dao_addr::launchpad_test {
 
     fun setup_dao_with_launchpad(admin: &signer) {
         let council = vector::singleton(TEST_DAO_ADMIN);
-        dao_core::create_dao(
+        dao_core_file::init_registry_for_test();
+        dao_core_file::create_dao(
             admin,
             string::utf8(b"Test DAO"),
             string::utf8(b"Subname"),
@@ -27,7 +28,7 @@ module dao_addr::launchpad_test {
             b"logo",
             b"bg",
             council,
-            30 // min_stake_to_join
+            6000000 // min_stake_to_join (6 Move)
         );
     }
 
@@ -51,7 +52,7 @@ module dao_addr::launchpad_test {
         let dao_addr = signer::address_of(admin);
 
         // Create launchpad
-        dao_core::create_dao_launchpad(
+        dao_core_file::create_dao_launchpad(
             admin,
             dao_addr,
             string::utf8(b"Test Token Launch"),
@@ -94,7 +95,7 @@ module dao_addr::launchpad_test {
         setup_dao_with_launchpad(admin);
         let dao_addr = signer::address_of(admin);
 
-        dao_core::create_dao_launchpad(
+        dao_core_file::create_dao_launchpad(
             admin, dao_addr, string::utf8(b"Test Launch"), string::utf8(b"TEST"),
             1000000, 100, 30, 20, 6, 24, true
         );
@@ -111,7 +112,7 @@ module dao_addr::launchpad_test {
         vector::push_back(&mut allocations, 5000);
         vector::push_back(&mut allocations, 3000);
         
-        dao_core::manage_launchpad_whitelist(admin, dao_addr, participants, tiers, allocations);
+        dao_core_file::manage_launchpad_whitelist(admin, dao_addr, participants, tiers, allocations);
 
         // Check whitelist status
         assert!(launchpad::is_whitelisted(dao_addr, TEST_INVESTOR1), EASSERTION_FAILED);
@@ -151,7 +152,7 @@ module dao_addr::launchpad_test {
         setup_dao_with_launchpad(admin);
         let dao_addr = signer::address_of(admin);
 
-        dao_core::create_dao_launchpad(
+        dao_core_file::create_dao_launchpad(
             admin, dao_addr, string::utf8(b"Test Launch"), string::utf8(b"TEST"),
             1000000, 100, 30, 20, 6, 24, false
         );
@@ -204,7 +205,7 @@ module dao_addr::launchpad_test {
         setup_dao_with_launchpad(admin);
         let dao_addr = signer::address_of(admin);
 
-        dao_core::create_dao_launchpad(
+        dao_core_file::create_dao_launchpad(
             admin, dao_addr, string::utf8(b"Test Launch"), string::utf8(b"TEST"),
             1000000, 100, 30, 20, 6, 24, false // KYC not required
         );
@@ -221,7 +222,7 @@ module dao_addr::launchpad_test {
         vector::push_back(&mut allocations, 5000);
         vector::push_back(&mut allocations, 3000);
         
-        dao_core::manage_launchpad_whitelist(admin, dao_addr, participants, tiers, allocations);
+        dao_core_file::manage_launchpad_whitelist(admin, dao_addr, participants, tiers, allocations);
 
         // Setup timeline for presale with minimum durations
         let now = timestamp::now_seconds();
@@ -278,7 +279,7 @@ module dao_addr::launchpad_test {
         setup_dao_with_launchpad(admin);
         let dao_addr = signer::address_of(admin);
 
-        dao_core::create_dao_launchpad(
+        dao_core_file::create_dao_launchpad(
             admin, dao_addr, string::utf8(b"Test Launch"), string::utf8(b"TEST"),
             1000000, 100, 30, 20, 6, 24, false
         );
@@ -332,7 +333,7 @@ module dao_addr::launchpad_test {
         setup_dao_with_launchpad(admin);
         let dao_addr = signer::address_of(admin);
 
-        dao_core::create_dao_launchpad(
+        dao_core_file::create_dao_launchpad(
             admin, dao_addr, string::utf8(b"Test Launch"), string::utf8(b"TEST"),
             1000000, 100, 30, 20, 6, 24, false
         );
@@ -381,7 +382,7 @@ module dao_addr::launchpad_test {
         setup_dao_with_launchpad(admin);
         let dao_addr = signer::address_of(admin);
 
-        dao_core::create_dao_launchpad(
+        dao_core_file::create_dao_launchpad(
             admin, dao_addr, string::utf8(b"Test Launch"), string::utf8(b"TEST"),
             1000000, 100, 30, 20, 6, 24, false
         );
@@ -404,7 +405,7 @@ module dao_addr::launchpad_test {
     }
 
     #[test(aptos_framework = @0x1, admin = @0x123, investor1 = @0x456)]
-    #[expected_failure(abort_code = 503, location = dao_addr::launchpad)] // errors::not_whitelisted() = 503
+    #[expected_failure(abort_code = 503, location = movedaoaddrx::launchpad)] // errors::not_whitelisted() = 503
     fun test_presale_non_whitelisted_fails(
         aptos_framework: &signer, 
         admin: &signer, 
@@ -423,7 +424,7 @@ module dao_addr::launchpad_test {
         setup_dao_with_launchpad(admin);
         let dao_addr = signer::address_of(admin);
 
-        dao_core::create_dao_launchpad(
+        dao_core_file::create_dao_launchpad(
             admin, dao_addr, string::utf8(b"Test Launch"), string::utf8(b"TEST"),
             1000000, 100, 30, 20, 6, 24, false
         );
@@ -445,7 +446,7 @@ module dao_addr::launchpad_test {
     }
 
     #[test(aptos_framework = @0x1, admin = @0x123, investor1 = @0x456)]
-    #[expected_failure(abort_code = 504, location = dao_addr::launchpad)] // errors::exceeds_allocation() = 504
+    #[expected_failure(abort_code = 504, location = movedaoaddrx::launchpad)] // errors::exceeds_allocation() = 504
     fun test_exceeds_allocation_fails(
         aptos_framework: &signer, 
         admin: &signer, 
@@ -464,7 +465,7 @@ module dao_addr::launchpad_test {
         setup_dao_with_launchpad(admin);
         let dao_addr = signer::address_of(admin);
 
-        dao_core::create_dao_launchpad(
+        dao_core_file::create_dao_launchpad(
             admin, dao_addr, string::utf8(b"Test Launch"), string::utf8(b"TEST"),
             1000000, 100, 30, 20, 6, 24, false
         );
@@ -474,7 +475,7 @@ module dao_addr::launchpad_test {
         let tiers = vector::singleton(launchpad::tier_bronze());
         let allocations = vector::singleton(1000u64); // Only 1000 tokens allowed
         
-        dao_core::manage_launchpad_whitelist(admin, dao_addr, participants, tiers, allocations);
+        dao_core_file::manage_launchpad_whitelist(admin, dao_addr, participants, tiers, allocations);
 
         // Setup timeline for presale - ensure we stay in presale phase
         let now = timestamp::now_seconds();
