@@ -1,10 +1,11 @@
 [package]
 name = "MoveDAO-Contract-finalversion"
-version = "4.0.0"
+version = "4.1.0"
 authors = []
 
 [addresses]
 movedaoaddrx = "0x8d5583a22574889575196d064ed454e2a7e0d811ec8fc3fcbeabc30349347189"
+aptos_framework = "0x1"
 
 [dev-addresses]
 

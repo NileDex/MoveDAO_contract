@@ -93,11 +93,14 @@ module movedaoaddrx::treasury {
         let treasury = borrow_global_mut<Treasury>(object::object_address(&treasury_obj));
         let movedaoaddrx = treasury.movedaoaddrxess;
         
-        // MEMBER-ONLY DEPOSITS: Only members or admins can deposit
-        // This ensures only committed community members can fund the treasury
-        if (!admin::is_admin(movedaoaddrx, depositor)) {
-            assert!(membership::is_member(movedaoaddrx, depositor), errors::not_member());
+        // CHECK DEPOSIT PERMISSIONS: Respect public deposits setting
+        if (!treasury.allow_public_deposits) {
+            // If public deposits are disabled, only members or admins can deposit
+            if (!admin::is_admin(movedaoaddrx, depositor)) {
+                assert!(membership::is_member(movedaoaddrx, depositor), errors::not_member());
+            };
         };
+        // If public deposits are enabled, anyone can deposit (no additional checks needed)
         
         // Validate amount
         assert!(amount > 0, errors::invalid_amount());
@@ -300,11 +303,14 @@ module movedaoaddrx::treasury {
         
         let treasury = borrow_global_mut<Treasury>(treasury_addr);
         
-        // MEMBER-ONLY DEPOSITS: Only members or admins can deposit
-        // This ensures only committed community members can fund the treasury
-        if (!admin::is_admin(movedaoaddrx, depositor)) {
-            assert!(membership::is_member(movedaoaddrx, depositor), errors::not_member());
+        // CHECK DEPOSIT PERMISSIONS: Respect public deposits setting
+        if (!treasury.allow_public_deposits) {
+            // If public deposits are disabled, only members or admins can deposit
+            if (!admin::is_admin(movedaoaddrx, depositor)) {
+                assert!(membership::is_member(movedaoaddrx, depositor), errors::not_member());
+            };
         };
+        // If public deposits are enabled, anyone can deposit (no additional checks needed)
         
         // Validate amount
         assert!(amount > 0, errors::invalid_amount());
