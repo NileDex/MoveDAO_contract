@@ -1000,6 +1000,65 @@ module movedaoaddrx::dao_core_file {
         registry.dao_addresses
     }
 
+    // Get all DAOs created by a specific address
+    #[view]
+    public fun get_daos_created_by(creator: address): vector<address> acquires DAORegistry {
+        if (!exists<DAORegistry>(@movedaoaddrx)) {
+            return vector::empty()
+        };
+        
+        let registry = borrow_global<DAORegistry>(@movedaoaddrx);
+        let dao_addresses = &registry.dao_addresses;
+        let result = vector::empty<address>();
+        
+        let i = 0;
+        let len = vector::length(dao_addresses);
+        while (i < len) {
+            let dao_addr = *vector::borrow(dao_addresses, i);
+            // Check if this DAO was created by the specified address
+            // In our system, DAOs are stored at the creator's address
+            if (dao_addr == creator && exists<DAOInfo>(dao_addr)) {
+                vector::push_back(&mut result, dao_addr);
+            };
+            i = i + 1;
+        };
+        
+        result
+    }
+
+    // Get all DAOs that a specific address has joined as a member
+    #[view]
+    public fun get_daos_joined_by(member: address): vector<address> acquires DAORegistry {
+        if (!exists<DAORegistry>(@movedaoaddrx)) {
+            return vector::empty()
+        };
+        
+        let registry = borrow_global<DAORegistry>(@movedaoaddrx);
+        let dao_addresses = &registry.dao_addresses;
+        let result = vector::empty<address>();
+        
+        let i = 0;
+        let len = vector::length(dao_addresses);
+        while (i < len) {
+            let dao_addr = *vector::borrow(dao_addresses, i);
+            // Check if the member is part of this DAO
+            if (membership::is_member(dao_addr, member)) {
+                vector::push_back(&mut result, dao_addr);
+            };
+            i = i + 1;
+        };
+        
+        result
+    }
+
+    // Get both created and joined DAOs for a user (convenience function)
+    #[view]
+    public fun get_user_daos(user_address: address): (vector<address>, vector<address>) acquires DAORegistry {
+        let created_daos = get_daos_created_by(user_address);
+        let joined_daos = get_daos_joined_by(user_address);
+        (created_daos, joined_daos)
+    }
+
     // Helper function to check if DAO registry is working
     #[view] 
     public fun is_registry_functional(): bool {
