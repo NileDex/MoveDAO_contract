@@ -164,6 +164,7 @@ module movedaoaddrx::activity_tracker {
     }
 
     // Query functions
+    #[view]
     public fun get_dao_activities(dao_address: address): vector<u64> acquires ActivityStore, GlobalActivityTracker {
         let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
@@ -175,6 +176,7 @@ module movedaoaddrx::activity_tracker {
         }
     }
 
+    #[view]
     public fun get_user_activities(user_address: address): vector<u64> acquires ActivityStore, GlobalActivityTracker {
         let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
@@ -186,6 +188,7 @@ module movedaoaddrx::activity_tracker {
         }
     }
 
+    #[view]
     public fun get_activity_by_id(activity_id: u64): ActivityRecord acquires ActivityStore, GlobalActivityTracker {
         let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
@@ -194,6 +197,7 @@ module movedaoaddrx::activity_tracker {
         *table::borrow(&activity_store.activities, activity_id)
     }
 
+    #[view]
     public fun get_total_activities(): u64 acquires ActivityStore, GlobalActivityTracker {
         let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
