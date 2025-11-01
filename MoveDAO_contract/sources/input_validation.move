@@ -1,8 +1,8 @@
 // Input validation - validates user inputs like strings, addresses, and parameters to prevent invalid data
-module movedaoaddrx::input_validation {
+module movedao_addrx::input_validation {
     use std::string::{Self, String};
     use std::vector;
-    use movedaoaddrx::errors;
+    use movedao_addrx::errors;
 
     // Validation constants
     const MIN_NAME_LENGTH: u64 = 2;
@@ -164,7 +164,7 @@ module movedaoaddrx::input_validation {
             i = i + 1;
         };
         
-        assert!(total <= max_total, errors::invalid_allocation());
+        assert!(total <= max_total, errors::invalid_amount());
     }
 
     /// Validate voting period bounds
@@ -200,7 +200,7 @@ module movedaoaddrx::input_validation {
     }
 
     #[test]
-    #[expected_failure(abort_code = 4, location = movedaoaddrx::input_validation)]
+    #[expected_failure(abort_code = 4, location = movedao_addrx::input_validation)]
     public fun test_validate_dao_name_too_short() {
         let short_name = string::utf8(b"Hi");
         validate_dao_name(&short_name);
@@ -216,7 +216,7 @@ module movedaoaddrx::input_validation {
     }
 
     #[test]
-    #[expected_failure(abort_code = 4, location = movedaoaddrx::input_validation)]
+    #[expected_failure(abort_code = 4, location = movedao_addrx::input_validation)]
     public fun test_validate_address_list_duplicates() {
         let addresses = vector::empty<address>();
         vector::push_back(&mut addresses, @0x1);

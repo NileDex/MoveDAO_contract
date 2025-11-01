@@ -1,5 +1,5 @@
 // Error definitions - centralized error codes and helper functions for all DAO modules
-module movedaoaddrx::errors {
+module movedao_addrx::errors {
     use std::error;
 
     // =============================================================================
@@ -9,13 +9,10 @@ module movedaoaddrx::errors {
     // Range allocation:
     // - Common errors: 1-49
     // - Admin module: 50-99
-    // - Council module: 100-149
     // - Membership module: 150-199
     // - Proposal module: 200-299
     // - Staking module: 300-399
     // - Treasury module: 400-449
-    // - Rewards module: 450-499
-    // - Launchpad module: 500-599
     // - DAO Core module: 600-649
 
     // =============================================================================
@@ -39,13 +36,8 @@ module movedaoaddrx::errors {
     // =============================================================================
     const EADMIN_LIST_EXISTS: u64 = 50;
     const EADMIN_NOT_FOUND: u64 = 51;
-
-    // =============================================================================
-    // COUNCIL MODULE ERROR CODES (100-149)
-    // =============================================================================
-    const ECOUNCIL_MEMBER_NOT_FOUND: u64 = 100;
-    const EMIN_MEMBERS_CONSTRAINT: u64 = 101;
-    const EMAX_MEMBERS_CONSTRAINT: u64 = 102;
+    const EMIN_MEMBERS_CONSTRAINT: u64 = 52;
+    const EMAX_MEMBERS_CONSTRAINT: u64 = 53;
 
     // =============================================================================
     // MEMBERSHIP MODULE ERROR CODES (150-199)
@@ -83,35 +75,14 @@ module movedaoaddrx::errors {
     // =============================================================================
     const EINSUFFICIENT_TREASURY: u64 = 400;
     const EWITHDRAWAL_LIMIT_EXCEEDED: u64 = 401;
-
-    // =============================================================================
-    // REWARDS MODULE ERROR CODES (450-499)
-    // =============================================================================
-    const EINVALID_REWARD_TYPE: u64 = 450;
-    const EREWARD_ALREADY_CLAIMED: u64 = 451;
-    const EREWARD_NOT_FOUND: u64 = 452;
-
-    // =============================================================================
-    // LAUNCHPAD MODULE ERROR CODES (500-599)
-    // =============================================================================
-    const ELAUNCHPAD_EXISTS: u64 = 500;
-    const ELAUNCHPAD_NOT_FOUND: u64 = 501;
-    const EINVALID_PHASE: u64 = 502;
-    const ENOT_WHITELISTED: u64 = 503;
-    const EEXCEEDS_ALLOCATION: u64 = 504;
-    const ESALE_NOT_ACTIVE: u64 = 505;
-    const EVESTING_NOT_STARTED: u64 = 506;
-    const ENO_TOKENS_TO_CLAIM: u64 = 507;
-    const EINSUFFICIENT_TOKENS: u64 = 508;
-    const EALREADY_WHITELISTED: u64 = 509;
-    const EINVALID_ALLOCATION: u64 = 510;
-    const ESALE_ENDED: u64 = 511;
+    const EINVALID_FA_METADATA: u64 = 402;
+    const EFA_TRANSFER_FAILED: u64 = 403;
+    const EINVALID_VAULT_ADDRESS: u64 = 404;
 
     // =============================================================================
     // DAO CORE MODULE ERROR CODES (600-649)
     // =============================================================================
     const EDAO_ALREADY_EXISTS: u64 = 600;
-    const ENOT_COUNCIL_MEMBER: u64 = 601;
     const EPROPOSAL_NOT_FOUND: u64 = 602;
     const EPROPOSAL_ALREADY_EXECUTED: u64 = 603;
     const EVOTING_PERIOD_ENDED: u64 = 604;
@@ -145,9 +116,6 @@ module movedaoaddrx::errors {
     // Admin module errors
     public fun admin_list_exists(): u64 { EADMIN_LIST_EXISTS }
     public fun admin_not_found(): u64 { EADMIN_NOT_FOUND }
-
-    // Council module errors
-    public fun council_member_not_found(): u64 { ECOUNCIL_MEMBER_NOT_FOUND }
     public fun min_members_constraint(): u64 { EMIN_MEMBERS_CONSTRAINT }
     public fun max_members_constraint(): u64 { EMAX_MEMBERS_CONSTRAINT }
 
@@ -179,29 +147,12 @@ module movedaoaddrx::errors {
     // Treasury module errors
     public fun insufficient_treasury(): u64 { EINSUFFICIENT_TREASURY }
     public fun withdrawal_limit_exceeded(): u64 { EWITHDRAWAL_LIMIT_EXCEEDED }
-
-    // Rewards module errors
-    public fun invalid_reward_type(): u64 { EINVALID_REWARD_TYPE }
-    public fun reward_already_claimed(): u64 { EREWARD_ALREADY_CLAIMED }
-    public fun reward_not_found(): u64 { EREWARD_NOT_FOUND }
-
-    // Launchpad module errors
-    public fun launchpad_exists(): u64 { ELAUNCHPAD_EXISTS }
-    public fun launchpad_not_found(): u64 { ELAUNCHPAD_NOT_FOUND }
-    public fun invalid_phase(): u64 { EINVALID_PHASE }
-    public fun not_whitelisted(): u64 { ENOT_WHITELISTED }
-    public fun exceeds_allocation(): u64 { EEXCEEDS_ALLOCATION }
-    public fun sale_not_active(): u64 { ESALE_NOT_ACTIVE }
-    public fun vesting_not_started(): u64 { EVESTING_NOT_STARTED }
-    public fun no_tokens_to_claim(): u64 { ENO_TOKENS_TO_CLAIM }
-    public fun insufficient_tokens(): u64 { EINSUFFICIENT_TOKENS }
-    public fun already_whitelisted(): u64 { EALREADY_WHITELISTED }
-    public fun invalid_allocation(): u64 { EINVALID_ALLOCATION }
-    public fun sale_ended(): u64 { ESALE_ENDED }
+    public fun invalid_fa_metadata(): u64 { EINVALID_FA_METADATA }
+    public fun fa_transfer_failed(): u64 { EFA_TRANSFER_FAILED }
+    public fun invalid_vault_address(): u64 { EINVALID_VAULT_ADDRESS }
 
     // DAO core module errors
     public fun dao_already_exists(): u64 { EDAO_ALREADY_EXISTS }
-    public fun not_council_member(): u64 { ENOT_COUNCIL_MEMBER }
     public fun proposal_not_found(): u64 { EPROPOSAL_NOT_FOUND }
     public fun proposal_already_executed(): u64 { EPROPOSAL_ALREADY_EXECUTED }
     public fun voting_period_ended(): u64 { EVOTING_PERIOD_ENDED }

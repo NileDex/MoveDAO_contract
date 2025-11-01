@@ -1,13 +1,13 @@
 // Platform Statistics - provides aggregated statistics across all DAOs for platform overview
-module movedaoaddrx::platform_stats {
+module movedao_addrx::platform_stats {
     use std::vector;
-    use movedaoaddrx::membership;
-    use movedaoaddrx::proposal;
-    use movedaoaddrx::dao_core_file as dao_core;
+    use movedao_addrx::membership;
+    use movedao_addrx::proposal;
+    use movedao_addrx::dao_core_file as dao_core;
 
     // Individual DAO statistics for aggregation
     struct DAOStats has store, copy, drop {
-        movedaoaddrxess: address,
+        movedao_addrx: address,
         active_proposals: u64,
         total_proposals: u64,
         total_members: u64,
@@ -86,7 +86,7 @@ module movedaoaddrx::platform_stats {
         vector::push_back(&mut potential_daos, @0xc2ed434a9696ec7e41d99b4d855159894a2b3f154ecbb0c4f3a4566b318aaf90);
         
         // Add module address (sometimes used for DAOs)
-        vector::push_back(&mut potential_daos, @movedaoaddrx);
+        vector::push_back(&mut potential_daos, @movedao_addrx);
         
         // Get stats from these potential DAOs
         get_platform_stats_from_list(potential_daos, vector::length(&potential_daos))
@@ -132,35 +132,35 @@ module movedaoaddrx::platform_stats {
 
     // Get detailed statistics for a specific DAO
     #[view]
-    public fun get_dao_detailed_stats(movedaoaddrxess: address): (u64, u64, u64, u64, u64) {
-        if (!dao_core::dao_exists(movedaoaddrxess)) return (0, 0, 0, 0, 0);
+    public fun get_dao_detailed_stats(movedao_addrx: address): (u64, u64, u64, u64, u64) {
+        if (!dao_core::dao_exists(movedao_addrx)) return (0, 0, 0, 0, 0);
         
-        let total_proposals = if (proposal::has_proposals(movedaoaddrxess)) {
-            proposal::get_proposals_count(movedaoaddrxess)
+        let total_proposals = if (proposal::has_proposals(movedao_addrx)) {
+            proposal::get_proposals_count(movedao_addrx)
         } else { 0 };
         
-        let active_proposals = get_active_proposal_count(movedaoaddrxess);
+        let active_proposals = get_active_proposal_count(movedao_addrx);
         
-        let total_members = membership::total_members(movedaoaddrxess);
-        let total_voting_power = membership::total_voting_power(movedaoaddrxess);
+        let total_members = membership::total_members(movedao_addrx);
+        let total_voting_power = membership::total_voting_power(movedao_addrx);
         
-        let total_votes = get_total_votes_count(movedaoaddrxess);
+        let total_votes = get_total_votes_count(movedao_addrx);
         
         (total_proposals, active_proposals, total_members, total_voting_power, total_votes)
     }
 
     // Get statistics for a specific DAO as struct
     #[view]
-    public fun get_dao_stats(movedaoaddrxess: address): DAOStats {
-        let active_proposals = get_active_proposal_count(movedaoaddrxess);
-        let total_proposals = if (proposal::has_proposals(movedaoaddrxess)) {
-            proposal::get_proposals_count(movedaoaddrxess)
+    public fun get_dao_stats(movedao_addrx: address): DAOStats {
+        let active_proposals = get_active_proposal_count(movedao_addrx);
+        let total_proposals = if (proposal::has_proposals(movedao_addrx)) {
+            proposal::get_proposals_count(movedao_addrx)
         } else { 0 };
-        let total_members = membership::total_members(movedaoaddrxess);
-        let total_votes = get_total_votes_count(movedaoaddrxess);
+        let total_members = membership::total_members(movedao_addrx);
+        let total_votes = get_total_votes_count(movedao_addrx);
         
         DAOStats {
-            movedaoaddrxess,
+            movedao_addrx,
             active_proposals,
             total_proposals,
             total_members,
@@ -169,15 +169,15 @@ module movedaoaddrx::platform_stats {
     }
 
     // Helper function to count active proposals in a DAO
-    fun get_active_proposal_count(movedaoaddrxess: address): u64 {
-        if (!proposal::has_proposals(movedaoaddrxess)) return 0;
+    fun get_active_proposal_count(movedao_addrx: address): u64 {
+        if (!proposal::has_proposals(movedao_addrx)) return 0;
         
-        let total_proposals = proposal::get_proposals_count(movedaoaddrxess);
+        let total_proposals = proposal::get_proposals_count(movedao_addrx);
         let active_count = 0;
         let i = 0;
         
         while (i < total_proposals) {
-            let (_, _, _, _, status, _, _, _, _, _, _, _, _, _, _, _) = proposal::get_proposal_details(movedaoaddrxess, i);
+            let (_, _, _, _, status, _, _, _, _, _, _, _, _, _, _, _) = proposal::get_proposal_details(movedao_addrx, i);
             // Status 1 = Active, Status 2 = Voting
             if (status == 1 || status == 2) {
                 active_count = active_count + 1;
@@ -189,15 +189,15 @@ module movedaoaddrx::platform_stats {
     }
 
     // Helper function to count total votes cast in a DAO
-    fun get_total_votes_count(movedaoaddrxess: address): u64 {
-        if (!proposal::has_proposals(movedaoaddrxess)) return 0;
+    fun get_total_votes_count(movedao_addrx: address): u64 {
+        if (!proposal::has_proposals(movedao_addrx)) return 0;
         
-        let total_proposals = proposal::get_proposals_count(movedaoaddrxess);
+        let total_proposals = proposal::get_proposals_count(movedao_addrx);
         let total_votes = 0;
         let i = 0;
         
         while (i < total_proposals) {
-            let vote_count = proposal::get_proposal_vote_count(movedaoaddrxess, i);
+            let vote_count = proposal::get_proposal_vote_count(movedao_addrx, i);
             total_votes = total_votes + vote_count;
             i = i + 1;
         };
@@ -207,15 +207,15 @@ module movedaoaddrx::platform_stats {
 
     // Batch function to get overview for multiple DAOs
     #[view]
-    public fun get_multiple_dao_stats(movedaoaddrxesses: vector<address>): vector<DAOStats> {
+    public fun get_multiple_dao_stats(movedao_addrxes: vector<address>): vector<DAOStats> {
         let stats = vector::empty<DAOStats>();
         let i = 0;
-        let len = vector::length(&movedaoaddrxesses);
+        let len = vector::length(&movedao_addrxes);
         
         while (i < len) {
-            let movedaoaddrx = *vector::borrow(&movedaoaddrxesses, i);
-            if (dao_core::dao_exists(movedaoaddrx)) {
-                let dao_stats = get_dao_stats(movedaoaddrx);
+            let movedao_addrx = *vector::borrow(&movedao_addrxes, i);
+            if (dao_core::dao_exists(movedao_addrx)) {
+                let dao_stats = get_dao_stats(movedao_addrx);
                 vector::push_back(&mut stats, dao_stats);
             };
             i = i + 1;

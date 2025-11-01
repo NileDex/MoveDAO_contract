@@ -1,11 +1,11 @@
 // Admin system - manages DAO administrators with different roles and permissions (Super, Standard, Temporary)
-module movedaoaddrx::admin {
+module movedao_addrx::admin {
     use std::signer;
     use std::vector;
     use std::simple_map::{Self, SimpleMap};
     use std::event;
     use aptos_framework::timestamp;
-    use movedaoaddrx::errors;
+    use movedao_addrx::errors;
 
     // Role constants
     const ROLE_SUPER_ADMIN: u8 = 255;
@@ -23,7 +23,8 @@ module movedaoaddrx::admin {
 
     struct AdminList has key {
         admins: SimpleMap<address, Admin>,
-        min_super_admins: u64
+        min_super_admins: u64,
+        min_temp_admin_duration: u64  // Minimum duration in seconds for temporary admins
     }
 
     #[event]
@@ -44,7 +45,7 @@ module movedaoaddrx::admin {
     public fun init_admin(account: &signer, min_super_admins: u64) {
         let addr = signer::address_of(account);
         errors::require_not_exists(!exists<AdminList>(addr), errors::admin_list_exists());
-        
+
         let admins = simple_map::new();
         simple_map::add(&mut admins, addr, Admin {
             role: ROLE_SUPER_ADMIN,
@@ -54,7 +55,8 @@ module movedaoaddrx::admin {
 
         let admin_list = AdminList {
             admins,
-            min_super_admins
+            min_super_admins,
+            min_temp_admin_duration: 300  // Default 5 minutes (300 seconds)
         };
 
         // Move the AdminList directly to the account (keeping direct storage for admin)
@@ -66,7 +68,7 @@ module movedaoaddrx::admin {
     // Add new admin
     public entry fun add_admin(
         admin_account: &signer,
-        movedaoaddrx: address,
+        movedao_addrx: address,
         new_admin: address,
         role: u8,
         expires_in_secs: u64
@@ -79,11 +81,11 @@ module movedaoaddrx::admin {
         );
         
         let admin_addr = signer::address_of(admin_account);
-        errors::require_admin(is_admin(movedaoaddrx, admin_addr));
+        errors::require_admin(is_admin(movedao_addrx, admin_addr));
         
         // Get caller's role before acquiring mutable reference
-        let caller_role = get_admin_role(movedaoaddrx, admin_addr);
-        let admin_list = borrow_global_mut<AdminList>(movedaoaddrx);
+        let caller_role = get_admin_role(movedao_addrx, admin_addr);
+        let admin_list = borrow_global_mut<AdminList>(movedao_addrx);
         
         // Role hierarchy enforcement: only super admins can add super admins
         if (role == ROLE_SUPER_ADMIN) {
@@ -101,8 +103,10 @@ module movedaoaddrx::admin {
         let now = timestamp::now_seconds();
         let expires_at = if (expires_in_secs > 0) now + expires_in_secs else 0;
 
-        // Require at least 300 seconds (5 minutes) for temporary admins to prevent race conditions
-        if (expires_at > 0 && expires_in_secs < 300) abort errors::expiration_past();
+        // Enforce minimum duration for temporary admins (configurable per DAO)
+        if (expires_at > 0 && expires_in_secs < admin_list.min_temp_admin_duration) {
+            abort errors::expiration_past()
+        };
 
         simple_map::add(&mut admin_list.admins, new_admin, Admin {
             role,
@@ -110,22 +114,43 @@ module movedaoaddrx::admin {
             expires_at
         });
 
-        emit_admin_event(movedaoaddrx, new_admin, b"added", role, expires_at);
+        emit_admin_event(movedao_addrx, new_admin, b"added", role, expires_at);
+    }
+
+    // Configure minimum temporary admin duration (super admin only)
+    public entry fun set_min_temp_admin_duration(
+        admin_account: &signer,
+        movedao_addrx: address,
+        new_min_duration: u64
+    ) acquires AdminList {
+        let admin_addr = signer::address_of(admin_account);
+        errors::require_admin(is_admin(movedao_addrx, admin_addr));
+
+        // Only super admins can modify this setting
+        let caller_role = get_admin_role(movedao_addrx, admin_addr);
+        assert!(caller_role == ROLE_SUPER_ADMIN, errors::not_authorized());
+
+        // Enforce reasonable bounds: minimum 60 seconds (1 minute), maximum 7 days
+        assert!(new_min_duration >= 60, errors::invalid_amount());
+        assert!(new_min_duration <= 604800, errors::invalid_amount());
+
+        let admin_list = borrow_global_mut<AdminList>(movedao_addrx);
+        admin_list.min_temp_admin_duration = new_min_duration;
     }
 
     // Remove admin
     public entry fun remove_admin(
         admin_account: &signer,
-        movedaoaddrx: address,
+        movedao_addrx: address,
         admin_to_remove: address
     ) acquires AdminList {
         let admin_addr = signer::address_of(admin_account);
-        errors::require_admin(is_admin(movedaoaddrx, admin_addr));
+        errors::require_admin(is_admin(movedao_addrx, admin_addr));
         
         // Get caller's role before acquiring mutable reference
-        let caller_role = get_admin_role(movedaoaddrx, admin_addr);
+        let caller_role = get_admin_role(movedao_addrx, admin_addr);
         
-        let admin_list = borrow_global_mut<AdminList>(movedaoaddrx);
+        let admin_list = borrow_global_mut<AdminList>(movedao_addrx);
         errors::require_exists(simple_map::contains_key(&admin_list.admins, &admin_to_remove), errors::admin_not_found());
         
         let admin = simple_map::borrow(&admin_list.admins, &admin_to_remove);
@@ -141,36 +166,36 @@ module movedaoaddrx::admin {
         };
         
         simple_map::remove(&mut admin_list.admins, &admin_to_remove);
-        emit_admin_event(movedaoaddrx, admin_to_remove, b"removed", role, expires_at);
+        emit_admin_event(movedao_addrx, admin_to_remove, b"removed", role, expires_at);
     }
 
     // View functions
     #[view]
-    public fun is_admin(movedaoaddrx: address, addr: address): bool acquires AdminList {
-        if (!exists<AdminList>(movedaoaddrx)) return false;
-        let admin_list = borrow_global<AdminList>(movedaoaddrx);
+    public fun is_admin(movedao_addrx: address, addr: address): bool acquires AdminList {
+        if (!exists<AdminList>(movedao_addrx)) return false;
+        let admin_list = borrow_global<AdminList>(movedao_addrx);
         simple_map::contains_key(&admin_list.admins, &addr) && !is_expired(admin_list, addr)
     }
 
     #[view]
-    public fun get_admin_role(movedaoaddrx: address, addr: address): u8 acquires AdminList {
-        errors::require_exists(exists<AdminList>(movedaoaddrx), errors::admin_not_found());
-        let admin_list = borrow_global<AdminList>(movedaoaddrx);
+    public fun get_admin_role(movedao_addrx: address, addr: address): u8 acquires AdminList {
+        errors::require_exists(exists<AdminList>(movedao_addrx), errors::admin_not_found());
+        let admin_list = borrow_global<AdminList>(movedao_addrx);
         errors::require_exists(simple_map::contains_key(&admin_list.admins, &addr), errors::admin_not_found());
         simple_map::borrow(&admin_list.admins, &addr).role
     }
 
     #[view]
-    public fun get_admins(movedaoaddrx: address): vector<address> acquires AdminList {
-        let admin_list = borrow_global<AdminList>(movedaoaddrx);
+    public fun get_admins(movedao_addrx: address): vector<address> acquires AdminList {
+        let admin_list = borrow_global<AdminList>(movedao_addrx);
         // Direct access to keys is more efficient than manual iteration
         simple_map::keys(&admin_list.admins)
     }
 
     // New efficient helper functions
     #[view]
-    public fun get_admin_count(movedaoaddrx: address): u64 acquires AdminList {
-        let admin_list = borrow_global<AdminList>(movedaoaddrx);
+    public fun get_admin_count(movedao_addrx: address): u64 acquires AdminList {
+        let admin_list = borrow_global<AdminList>(movedao_addrx);
         simple_map::length(&admin_list.admins)
     }
 
@@ -179,8 +204,15 @@ module movedaoaddrx::admin {
 
     // Check if admin system is initialized for a DAO
     #[view]
-    public fun exists_admin_list(movedaoaddrx: address): bool {
-        exists<AdminList>(movedaoaddrx)
+    public fun exists_admin_list(movedao_addrx: address): bool {
+        exists<AdminList>(movedao_addrx)
+    }
+
+    // Get the minimum temporary admin duration for this DAO
+    #[view]
+    public fun get_min_temp_admin_duration(movedao_addrx: address): u64 acquires AdminList {
+        let admin_list = borrow_global<AdminList>(movedao_addrx);
+        admin_list.min_temp_admin_duration
     }
 
     // Helper functions

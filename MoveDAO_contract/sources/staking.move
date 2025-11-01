@@ -1,5 +1,5 @@
 // Staking system - handles APT token staking/unstaking for membership and voting power calculation
-module movedaoaddrx::staking {
+module movedao_addrx::staking {
     use std::signer;
     use std::string::String;
     use std::vector;
@@ -9,16 +9,15 @@ module movedaoaddrx::staking {
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::timestamp;
     use aptos_std::table::{Self, Table};
-    use movedaoaddrx::admin;
-    use movedaoaddrx::rewards;
-    use movedaoaddrx::errors;
-    use movedaoaddrx::safe_math;
-    use movedaoaddrx::activity_tracker;
+    use movedao_addrx::admin;
+    use movedao_addrx::errors;
+    use movedao_addrx::safe_math;
+    use movedao_addrx::activity_tracker;
 
     // Activity tracking events
     #[event]
     struct StakeEvent has drop, store {
-        movedaoaddrxess: address,
+        movedao_addrx: address,
         staker: address,
         amount: u64,
         total_staked: u64,
@@ -28,7 +27,7 @@ module movedaoaddrx::staking {
 
     #[event]
     struct UnstakeEvent has drop, store {
-        movedaoaddrxess: address,
+        movedao_addrx: address,
         staker: address,
         amount: u64,
         remaining_staked: u64,
@@ -38,7 +37,7 @@ module movedaoaddrx::staking {
 
     #[event]
     struct RewardClaimedEvent has drop, store {
-        movedaoaddrxess: address,
+        movedao_addrx: address,
         staker: address,
         reward_amount: u64,
         timestamp: u64,
@@ -141,7 +140,7 @@ module movedaoaddrx::staking {
     /// VOTING POWER: 1 staked token = 1 vote weight
     /// REWARDS: Staked tokens earn passive income over time
     /// UNSTAKE: Users can unstake anytime with no restrictions (reduces voting power)
-    public entry fun stake(acc_own: &signer, movedaoaddrx: address, amount: u64) acquires StakerProfile, Vault, StakerRegistry {
+    public entry fun stake(acc_own: &signer, movedao_addrx: address, amount: u64) acquires StakerProfile, Vault, StakerRegistry {
         let from = signer::address_of(acc_own);
         
         // Check if user has enough APT tokens in their wallet
@@ -158,7 +157,7 @@ module movedaoaddrx::staking {
         };
         
         let profile = borrow_global_mut<StakerProfile>(from);
-        let is_new_dao_staker = !table::contains(&profile.dao_stakes, movedaoaddrx);
+        let is_new_dao_staker = !table::contains(&profile.dao_stakes, movedao_addrx);
         
         if (is_new_dao_staker) {
             // First time staking in this DAO
@@ -166,10 +165,10 @@ module movedaoaddrx::staking {
                 staked_balance: amount,
                 last_stake_time: timestamp::now_seconds(),
             };
-            table::add(&mut profile.dao_stakes, movedaoaddrx, dao_stake_info);
+            table::add(&mut profile.dao_stakes, movedao_addrx, dao_stake_info);
         } else {
             // Adding to existing stake in this DAO
-            let dao_stake_info = table::borrow_mut(&mut profile.dao_stakes, movedaoaddrx);
+            let dao_stake_info = table::borrow_mut(&mut profile.dao_stakes, movedao_addrx);
             dao_stake_info.staked_balance = safe_math::safe_add(dao_stake_info.staked_balance, amount);
             dao_stake_info.last_stake_time = timestamp::now_seconds(); // Update stake time to prevent gaming
         };
@@ -178,7 +177,7 @@ module movedaoaddrx::staking {
         profile.total_staked = safe_math::safe_add(profile.total_staked, amount);
 
         // Update the DAO's staker registry
-        let registry = borrow_global_mut<StakerRegistry>(movedaoaddrx);
+        let registry = borrow_global_mut<StakerRegistry>(movedao_addrx);
         if (is_new_dao_staker) {
             table::add(&mut registry.stakers, from, amount);
             registry.total_stakers = safe_math::safe_add(registry.total_stakers, 1);
@@ -189,12 +188,12 @@ module movedaoaddrx::staking {
 
         // Transfer APT tokens from user to DAO vault (locking them)
         let coins = coin::withdraw<AptosCoin>(acc_own, amount);
-        let vault = borrow_global_mut<Vault>(get_vault_addr(movedaoaddrx));
+        let vault = borrow_global_mut<Vault>(get_vault_addr(movedao_addrx));
         coin::merge(&mut vault.balance, coins);
 
         // Log stake activity
         activity_tracker::emit_stake_activity(
-            movedaoaddrx,            // dao_address
+            movedao_addrx,            // dao_address
             from,                    // staker
             amount,                  // amount
             vector::empty<u8>(),     // transaction_hash
@@ -204,24 +203,24 @@ module movedaoaddrx::staking {
         // Emit stake event (for activity tracking)
         // Note: transaction hash not available in Move; keep empty vector for compatibility
         event::emit(StakeEvent {
-            movedaoaddrxess: movedaoaddrx,
+            movedao_addrx: movedao_addrx,
             staker: from,
             amount,
-            total_staked: get_dao_staked_balance(movedaoaddrx, from),
+            total_staked: get_dao_staked_balance(movedao_addrx, from),
             timestamp: timestamp::now_seconds(),
             transaction_hash: vector::empty(),
         });
     }
 
-    public entry fun unstake(acc_own: &signer, movedaoaddrx: address, amount: u64) acquires StakerProfile, Vault, StakerRegistry {
+    public entry fun unstake(acc_own: &signer, movedao_addrx: address, amount: u64) acquires StakerProfile, Vault, StakerRegistry {
         let from = signer::address_of(acc_own);
         
         // Check if user has staking profile and has staked in this DAO
         assert!(exists<StakerProfile>(from), errors::not_found());
         let profile = borrow_global_mut<StakerProfile>(from);
-        assert!(table::contains(&profile.dao_stakes, movedaoaddrx), errors::not_found());
+        assert!(table::contains(&profile.dao_stakes, movedao_addrx), errors::not_found());
         
-        let dao_stake_info = table::borrow(&profile.dao_stakes, movedaoaddrx);
+        let dao_stake_info = table::borrow(&profile.dao_stakes, movedao_addrx);
         let staked_amount = dao_stake_info.staked_balance;
         assert!(staked_amount >= amount, errors::invalid_unstake_amount());
         
@@ -231,19 +230,19 @@ module movedaoaddrx::staking {
         assert!(current_time >= dao_stake_info.last_stake_time + min_period, errors::invalid_time());
         
         // Transfer tokens back to user
-        let vault = borrow_global_mut<Vault>(get_vault_addr(movedaoaddrx));
+        let vault = borrow_global_mut<Vault>(get_vault_addr(movedao_addrx));
         let coins = coin::extract(&mut vault.balance, amount);
         coin::deposit(from, coins);
         
         // Update DAO-specific stake
-        let dao_stake_info = table::borrow_mut(&mut profile.dao_stakes, movedaoaddrx);
+        let dao_stake_info = table::borrow_mut(&mut profile.dao_stakes, movedao_addrx);
         dao_stake_info.staked_balance = safe_math::safe_sub(dao_stake_info.staked_balance, amount);
         
         // Update total staked across all DAOs
         profile.total_staked = safe_math::safe_sub(profile.total_staked, amount);
         
         // Update staker registry
-        let registry = borrow_global_mut<StakerRegistry>(movedaoaddrx);
+        let registry = borrow_global_mut<StakerRegistry>(movedao_addrx);
         assert!(table::contains(&registry.stakers, from), errors::not_found());
         
         let current_amount = table::borrow_mut(&mut registry.stakers, from);
@@ -253,13 +252,13 @@ module movedaoaddrx::staking {
         // Remove from registry and DAO stakes if fully unstaked from this DAO
         if (*current_amount == 0) {
             table::remove(&mut registry.stakers, from);
-            let _ = table::remove(&mut profile.dao_stakes, movedaoaddrx);
+            let _ = table::remove(&mut profile.dao_stakes, movedao_addrx);
             registry.total_stakers = safe_math::safe_sub(registry.total_stakers, 1);
         };
 
         // Log unstake activity
         activity_tracker::emit_unstake_activity(
-            movedaoaddrx,            // dao_address
+            movedao_addrx,            // dao_address
             from,                    // staker
             amount,                  // amount
             vector::empty<u8>(),     // transaction_hash
@@ -268,20 +267,20 @@ module movedaoaddrx::staking {
 
         // Emit unstake event (for activity tracking)
         event::emit(UnstakeEvent {
-            movedaoaddrxess: movedaoaddrx,
+            movedao_addrx: movedao_addrx,
             staker: from,
             amount,
-            remaining_staked: get_dao_staked_balance(movedaoaddrx, from),
+            remaining_staked: get_dao_staked_balance(movedao_addrx, from),
             timestamp: timestamp::now_seconds(),
             transaction_hash: vector::empty(),
         });
     }
 
-    public entry fun create_vote(acc_own: &signer, movedaoaddrx: address, title: String, description: String, start_time: u64, end_time: u64) acquires VoteRepository {
+    public entry fun create_vote(acc_own: &signer, movedao_addrx: address, title: String, description: String, start_time: u64, end_time: u64) acquires VoteRepository {
         let from = signer::address_of(acc_own);
-        assert!(is_admin(movedaoaddrx, from), errors::not_admin());
+        assert!(is_admin(movedao_addrx, from), errors::not_admin());
 
-        let vote_repository = borrow_global_mut<VoteRepository>(movedaoaddrx);
+        let vote_repository = borrow_global_mut<VoteRepository>(movedao_addrx);
         let vote = Vote {
             id: vector::length(&vote_repository.votes),
             title,
@@ -296,9 +295,9 @@ module movedaoaddrx::staking {
         vector::push_back(&mut vote_repository.votes, vote);
     }
 
-    public entry fun vote(acc_own: &signer, movedaoaddrx: address, vote_id: u64, is_yes_vote: bool) acquires VoteRepository, StakerRegistry {
+    public entry fun vote(acc_own: &signer, movedao_addrx: address, vote_id: u64, is_yes_vote: bool) acquires VoteRepository, StakerRegistry {
         let from = signer::address_of(acc_own);
-        let vote_repository = borrow_global_mut<VoteRepository>(movedaoaddrx);
+        let vote_repository = borrow_global_mut<VoteRepository>(movedao_addrx);
         let vote = vector::borrow_mut(&mut vote_repository.votes, vote_id);
         assert!(vote.start_time <= timestamp::now_seconds() && vote.end_time >= timestamp::now_seconds(), errors::invalid_vote_time());
 
@@ -306,7 +305,7 @@ module movedaoaddrx::staking {
         assert!(!table::contains(&vote.voters, from), errors::already_voted());
 
         // FIX TOCTOU: Get voting power atomically from registry (locked at time of voting)
-        let registry = borrow_global<StakerRegistry>(movedaoaddrx);
+        let registry = borrow_global<StakerRegistry>(movedao_addrx);
         assert!(table::contains(&registry.stakers, from), errors::not_member());
         let voting_power = *table::borrow(&registry.stakers, from);
         assert!(voting_power > 0, errors::insufficient_stake());
@@ -326,11 +325,11 @@ module movedaoaddrx::staking {
         table::add(&mut vote.voters, from, vote_record);
     }
 
-    public entry fun declare_winner(acc_own: &signer, movedaoaddrx: address, vote_id: u64) acquires VoteRepository {
+    public entry fun declare_winner(acc_own: &signer, movedao_addrx: address, vote_id: u64) acquires VoteRepository {
         let from = signer::address_of(acc_own);
-        assert!(is_admin(movedaoaddrx, from), errors::not_admin());
+        assert!(is_admin(movedao_addrx, from), errors::not_admin());
 
-        let vote_repository = borrow_global_mut<VoteRepository>(movedaoaddrx);
+        let vote_repository = borrow_global_mut<VoteRepository>(movedao_addrx);
         let vote = vector::borrow_mut(&mut vote_repository.votes, vote_id);
         assert!(vote.end_time <= timestamp::now_seconds(), errors::invalid_vote_time());
 
@@ -338,8 +337,8 @@ module movedaoaddrx::staking {
     }
 
     #[view]
-    public fun get_vault_addr(movedaoaddrx: address): address {
-        object::create_object_address(&movedaoaddrx, VAULT_SEED)
+    public fun get_vault_addr(movedao_addrx: address): address {
+        object::create_object_address(&movedao_addrx, VAULT_SEED)
     }
 
     #[view]
@@ -354,22 +353,22 @@ module movedaoaddrx::staking {
     }
     
     #[view]
-    public fun get_dao_staked_balance(movedaoaddrx: address, addr: address): u64 acquires StakerProfile {
+    public fun get_dao_staked_balance(movedao_addrx: address, addr: address): u64 acquires StakerProfile {
         if (!exists<StakerProfile>(addr)) return 0;
         let profile = borrow_global<StakerProfile>(addr);
-        if (!table::contains(&profile.dao_stakes, movedaoaddrx)) return 0;
-        table::borrow(&profile.dao_stakes, movedaoaddrx).staked_balance
+        if (!table::contains(&profile.dao_stakes, movedao_addrx)) return 0;
+        table::borrow(&profile.dao_stakes, movedao_addrx).staked_balance
     }
 
     #[view]
-    public fun get_total_staked(movedaoaddrx: address): u64 acquires Vault {
-        coin::value(&borrow_global<Vault>(get_vault_addr(movedaoaddrx)).balance)
+    public fun get_total_staked(movedao_addrx: address): u64 acquires Vault {
+        coin::value(&borrow_global<Vault>(get_vault_addr(movedao_addrx)).balance)
     }
 
     // Check if staking system is initialized for a DAO
     #[view]
-    public fun is_staking_initialized(movedaoaddrx: address): bool {
-        exists<Vault>(movedaoaddrx) && exists<StakerRegistry>(movedaoaddrx)
+    public fun is_staking_initialized(movedao_addrx: address): bool {
+        exists<Vault>(movedao_addrx) && exists<StakerRegistry>(movedao_addrx)
     }
 
     #[view]
@@ -378,19 +377,19 @@ module movedaoaddrx::staking {
     }
     
     #[view]
-    public fun is_dao_staker(movedaoaddrx: address, addr: address): bool acquires StakerProfile {
+    public fun is_dao_staker(movedao_addrx: address, addr: address): bool acquires StakerProfile {
         if (!exists<StakerProfile>(addr)) return false;
         let profile = borrow_global<StakerProfile>(addr);
-        table::contains(&profile.dao_stakes, movedaoaddrx)
+        table::contains(&profile.dao_stakes, movedao_addrx)
     }
 
-    fun get_vault_signer(movedaoaddrx: address): signer acquires Vault {
-        let vault = borrow_global<Vault>(get_vault_addr(movedaoaddrx));
+    fun get_vault_signer(movedao_addrx: address): signer acquires Vault {
+        let vault = borrow_global<Vault>(get_vault_addr(movedao_addrx));
         object::generate_signer_for_extending(&vault.extend_ref)
     }
 
-    fun is_admin(movedaoaddrx: address, addr: address): bool {
-        admin::is_admin(movedaoaddrx, addr)
+    fun is_admin(movedao_addrx: address, addr: address): bool {
+        admin::is_admin(movedao_addrx, addr)
     }
 
     #[test_only]
@@ -400,7 +399,7 @@ module movedaoaddrx::staking {
     #[test_only]
     use aptos_framework::aptos_coin;
 
-    #[test(aptos_framework = @0x1, creator = @movedaoaddrx, alice = @0x3)]
+    #[test(aptos_framework = @0x1, creator = @movedao_addrx, alice = @0x3)]
     public entry fun test_staking(
         aptos_framework: &signer, 
         creator: &signer, 
@@ -414,20 +413,20 @@ module movedaoaddrx::staking {
         coin::register<AptosCoin>(alice);
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
 
-        stake(alice, @movedaoaddrx, 500);
+        stake(alice, @movedao_addrx, 500);
         assert!(get_staked_balance(@0x3) == 500, 100);
         assert!(is_staker(@0x3), 101);
 
         // No need to wait - can unstake immediately
-        unstake(alice, @movedaoaddrx, 200);
+        unstake(alice, @movedao_addrx, 200);
         assert!(get_staked_balance(@0x3) == 300, 102);
 
         coin::destroy_mint_cap(mint_cap);
         coin::destroy_burn_cap(burn_cap);
     }
 
-    #[test(aptos_framework = @0x1, creator = @movedaoaddrx, alice = @0x3)]
-    #[expected_failure(abort_code = 8, location = movedaoaddrx::staking)]
+    #[test(aptos_framework = @0x1, creator = @movedao_addrx, alice = @0x3)]
+    #[expected_failure(abort_code = 8, location = movedao_addrx::staking)]
     public entry fun test_block_unstake_limit(
         aptos_framework: &signer, 
         creator: &signer, 
@@ -441,18 +440,18 @@ module movedaoaddrx::staking {
         coin::register<AptosCoin>(alice);
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
         
-        stake(alice, @movedaoaddrx, 500);
+        stake(alice, @movedao_addrx, 500);
         
         // No time lock - can unstake immediately 
-        unstake(alice, @movedaoaddrx, 400);
-        unstake(alice, @movedaoaddrx, 100);
-        unstake(alice, @movedaoaddrx, 100); // Should fail
+        unstake(alice, @movedao_addrx, 400);
+        unstake(alice, @movedao_addrx, 100);
+        unstake(alice, @movedao_addrx, 100); // Should fail
 
         coin::destroy_mint_cap(mint_cap);
         coin::destroy_burn_cap(burn_cap);
     }
 
-    #[test(aptos_framework = @0x1, creator = @movedaoaddrx, alice = @0x3)]
+    #[test(aptos_framework = @0x1, creator = @movedao_addrx, alice = @0x3)]
     public entry fun test_should_allow_multiple_stakes(
         aptos_framework: &signer, 
         creator: &signer, 
@@ -466,15 +465,15 @@ module movedaoaddrx::staking {
         coin::register<AptosCoin>(alice);
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
 
-        stake(alice, @movedaoaddrx, 500);
-        stake(alice, @movedaoaddrx, 100);
+        stake(alice, @movedao_addrx, 500);
+        stake(alice, @movedao_addrx, 100);
         assert!(get_staked_balance(@0x3) == 600, 100);
 
         coin::destroy_mint_cap(mint_cap);
         coin::destroy_burn_cap(burn_cap);
     }
 
-    #[test(aptos_framework = @0x1, creator = @movedaoaddrx, alice = @0x3, bob = @0x4)]
+    #[test(aptos_framework = @0x1, creator = @movedao_addrx, alice = @0x3, bob = @0x4)]
     public entry fun test_vote(
         aptos_framework: &signer, 
         creator: &signer, 
@@ -493,22 +492,22 @@ module movedaoaddrx::staking {
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
         coin::deposit(@0x4, coin::mint(1000, &mint_cap));
 
-        create_vote(creator, @movedaoaddrx, string::utf8(b"Test Vote"), string::utf8(b"This is a test vote"), 100, 200);
-        stake(alice, @movedaoaddrx, 500);
-        stake(bob, @movedaoaddrx, 300);
+        create_vote(creator, @movedao_addrx, string::utf8(b"Test Vote"), string::utf8(b"This is a test vote"), 100, 200);
+        stake(alice, @movedao_addrx, 500);
+        stake(bob, @movedao_addrx, 300);
 
         timestamp::update_global_time_for_test_secs(100);
 
-        vote(alice, @movedaoaddrx, 0, true);
-        vote(bob, @movedaoaddrx, 0, false);
+        vote(alice, @movedao_addrx, 0, true);
+        vote(bob, @movedao_addrx, 0, false);
         
         // No time lock - can unstake immediately
-        unstake(alice, @movedaoaddrx, 200);
+        unstake(alice, @movedao_addrx, 200);
 
         timestamp::update_global_time_for_test_secs(200);
-        declare_winner(creator, @movedaoaddrx, 0);
+        declare_winner(creator, @movedao_addrx, 0);
 
-        let vote_repository = borrow_global<VoteRepository>(@movedaoaddrx);
+        let vote_repository = borrow_global<VoteRepository>(@movedao_addrx);
         let vote = vector::borrow(&vote_repository.votes, 0);
         assert!(vote.completed == true, 100);
         assert!(vote.total_yes_votes == 500, 101);
@@ -518,8 +517,8 @@ module movedaoaddrx::staking {
         coin::destroy_burn_cap(burn_cap);
     }
 
-    #[test(aptos_framework = @0x1, creator = @movedaoaddrx, alice = @0x3)]
-    #[expected_failure(abort_code = 202, location = movedaoaddrx::staking)]
+    #[test(aptos_framework = @0x1, creator = @movedao_addrx, alice = @0x3)]
+    #[expected_failure(abort_code = 202, location = movedao_addrx::staking)]
     public entry fun test_can_only_vote_once(
         aptos_framework: &signer, 
         creator: &signer, 
@@ -536,16 +535,16 @@ module movedaoaddrx::staking {
 
         timestamp::update_global_time_for_test_secs(100);
 
-        create_vote(creator, @movedaoaddrx, string::utf8(b"Test Vote"), string::utf8(b"This is a test vote"), 100, 200);
-        stake(alice, @movedaoaddrx, 500);
-        vote(alice, @movedaoaddrx, 0, true);
-        vote(alice, @movedaoaddrx, 0, true); // Should fail
+        create_vote(creator, @movedao_addrx, string::utf8(b"Test Vote"), string::utf8(b"This is a test vote"), 100, 200);
+        stake(alice, @movedao_addrx, 500);
+        vote(alice, @movedao_addrx, 0, true);
+        vote(alice, @movedao_addrx, 0, true); // Should fail
 
         coin::destroy_mint_cap(mint_cap);
         coin::destroy_burn_cap(burn_cap);
     }
 
-    #[test(aptos_framework = @0x1, creator = @movedaoaddrx)]
+    #[test(aptos_framework = @0x1, creator = @movedao_addrx)]
     public entry fun test_total_staked(
         aptos_framework: &signer, 
         creator: &signer
@@ -558,50 +557,34 @@ module movedaoaddrx::staking {
         coin::register<AptosCoin>(&alice);
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
 
-        stake(&alice, @movedaoaddrx, 500);
-        assert!(get_total_staked(@movedaoaddrx) == 500, 100);
+        stake(&alice, @movedao_addrx, 500);
+        assert!(get_total_staked(@movedao_addrx) == 500, 100);
 
         coin::destroy_mint_cap(mint_cap);
         coin::destroy_burn_cap(burn_cap);
     }
 
     // Function to trigger staking rewards distribution
-    public entry fun distribute_staking_rewards(
-        admin: &signer,
-        movedaoaddrx: address
-    ) {
-        assert!(admin::is_admin(movedaoaddrx, signer::address_of(admin)), errors::not_admin());
-        
-        // Get all stakers and their balances (simplified approach)
-        // In a real implementation, you'd maintain a list of all stakers
-        let stakers = vector::empty<address>();
-        let staked_amounts = vector::empty<u64>();
-        
-        // For now, we'll add a manual way to distribute rewards
-        // A more sophisticated approach would maintain a registry of all stakers
-        rewards::distribute_staking_rewards(admin, movedaoaddrx, stakers, staked_amounts);
-    }
-
     // Helper function to get all stakers - for backward compatibility only
-    public fun get_all_stakers(_movedaoaddrx: address): (vector<address>, vector<u64>) {
+    public fun get_all_stakers(_movedao_addrx: address): (vector<address>, vector<u64>) {
         // Note: This function returns empty vectors for backward compatibility
         // Table iteration is not directly supported in Move. For better performance, use:
         // - get_staker_count() to get total number of stakers
-        // - get_staker_amount(movedaoaddrx, address) to get specific staker amounts  
-        // - is_registered_staker(movedaoaddrx, address) to check if address is a staker
+        // - get_staker_amount(movedao_addrx, address) to get specific staker amounts  
+        // - is_registered_staker(movedao_addrx, address) to check if address is a staker
         let stakers = vector::empty<address>();
         let amounts = vector::empty<u64>();
         (stakers, amounts)
     }
 
     // New efficient table-based functions
-    public fun get_staker_count(movedaoaddrx: address): u64 acquires StakerRegistry {
-        let registry = borrow_global<StakerRegistry>(movedaoaddrx);
+    public fun get_staker_count(movedao_addrx: address): u64 acquires StakerRegistry {
+        let registry = borrow_global<StakerRegistry>(movedao_addrx);
         registry.total_stakers
     }
 
-    public fun get_staker_amount(movedaoaddrx: address, staker: address): u64 acquires StakerRegistry {
-        let registry = borrow_global<StakerRegistry>(movedaoaddrx);
+    public fun get_staker_amount(movedao_addrx: address, staker: address): u64 acquires StakerRegistry {
+        let registry = borrow_global<StakerRegistry>(movedao_addrx);
         if (table::contains(&registry.stakers, staker)) {
             *table::borrow(&registry.stakers, staker)
         } else {
@@ -611,25 +594,25 @@ module movedaoaddrx::staking {
     
     // Direct function for getting DAO-specific stake (more efficient)
     #[view]
-    public fun get_dao_stake_direct(movedaoaddrx: address, staker: address): u64 acquires StakerProfile {
-        get_dao_staked_balance(movedaoaddrx, staker)
+    public fun get_dao_stake_direct(movedao_addrx: address, staker: address): u64 acquires StakerProfile {
+        get_dao_staked_balance(movedao_addrx, staker)
     }
 
-    public fun is_registered_staker(movedaoaddrx: address, staker: address): bool acquires StakerRegistry {
-        let registry = borrow_global<StakerRegistry>(movedaoaddrx);
+    public fun is_registered_staker(movedao_addrx: address, staker: address): bool acquires StakerRegistry {
+        let registry = borrow_global<StakerRegistry>(movedao_addrx);
         table::contains(&registry.stakers, staker)
     }
 
     // Synchronization validation and repair functions
     #[view]
-    public fun validate_staker_sync(movedaoaddrx: address, staker: address): bool acquires StakerProfile, StakerRegistry {
+    public fun validate_staker_sync(movedao_addrx: address, staker: address): bool acquires StakerProfile, StakerRegistry {
         if (!exists<StakerProfile>(staker)) {
-            return !is_registered_staker(movedaoaddrx, staker)
+            return !is_registered_staker(movedao_addrx, staker)
         };
         
-        let dao_balance = get_dao_staked_balance(movedaoaddrx, staker);
-        let registry_balance = if (is_registered_staker(movedaoaddrx, staker)) {
-            get_staker_amount(movedaoaddrx, staker)
+        let dao_balance = get_dao_staked_balance(movedao_addrx, staker);
+        let registry_balance = if (is_registered_staker(movedao_addrx, staker)) {
+            get_staker_amount(movedao_addrx, staker)
         } else {
             0
         };
@@ -640,15 +623,15 @@ module movedaoaddrx::staking {
     // Administrative function to repair desynchronized staking data
     public entry fun repair_staker_sync(
         admin: &signer, 
-        movedaoaddrx: address, 
+        movedao_addrx: address, 
         staker: address
     ) acquires StakerProfile, StakerRegistry {
         let admin_addr = signer::address_of(admin);
-        assert!(admin::is_admin(movedaoaddrx, admin_addr), errors::not_admin());
+        assert!(admin::is_admin(movedao_addrx, admin_addr), errors::not_admin());
         
         if (!exists<StakerProfile>(staker)) {
             // Staker has no profile, remove from registry
-            let registry = borrow_global_mut<StakerRegistry>(movedaoaddrx);
+            let registry = borrow_global_mut<StakerRegistry>(movedao_addrx);
             if (table::contains(&registry.stakers, staker)) {
                 table::remove(&mut registry.stakers, staker);
                 registry.total_stakers = safe_math::safe_sub(registry.total_stakers, 1);
@@ -656,8 +639,8 @@ module movedaoaddrx::staking {
             return
         };
         
-        let dao_balance = get_dao_staked_balance(movedaoaddrx, staker);
-        let registry = borrow_global_mut<StakerRegistry>(movedaoaddrx);
+        let dao_balance = get_dao_staked_balance(movedao_addrx, staker);
+        let registry = borrow_global_mut<StakerRegistry>(movedao_addrx);
         
         if (dao_balance == 0) {
             // Remove from registry
@@ -677,7 +660,7 @@ module movedaoaddrx::staking {
         };
     }
 
-    #[test(aptos_framework = @0x1, dao1 = @movedaoaddrx, dao2 = @0x5, alice = @0x3)]
+    #[test(aptos_framework = @0x1, dao1 = @movedao_addrx, dao2 = @0x5, alice = @0x3)]
     public entry fun test_multi_dao_staking(
         aptos_framework: &signer, 
         dao1: &signer, 
@@ -697,8 +680,8 @@ module movedaoaddrx::staking {
         coin::deposit(@0x3, coin::mint(2000, &mint_cap));
 
         // Stake in first DAO
-        stake(alice, @movedaoaddrx, 500);
-        assert!(get_dao_staked_balance(@movedaoaddrx, @0x3) == 500, 100);
+        stake(alice, @movedao_addrx, 500);
+        assert!(get_dao_staked_balance(@movedao_addrx, @0x3) == 500, 100);
         assert!(get_staked_balance(@0x3) == 500, 101);
         
         // Stake in second DAO - this should work without conflict
@@ -707,12 +690,12 @@ module movedaoaddrx::staking {
         assert!(get_staked_balance(@0x3) == 800, 103); // Total across both DAOs
         
         // Verify DAO-specific balances are separate
-        assert!(get_dao_staked_balance(@movedaoaddrx, @0x3) == 500, 104);
+        assert!(get_dao_staked_balance(@movedao_addrx, @0x3) == 500, 104);
         assert!(get_dao_staked_balance(@0x5, @0x3) == 300, 105);
         
         // Add more to first DAO
-        stake(alice, @movedaoaddrx, 100);
-        assert!(get_dao_staked_balance(@movedaoaddrx, @0x3) == 600, 106);
+        stake(alice, @movedao_addrx, 100);
+        assert!(get_dao_staked_balance(@movedao_addrx, @0x3) == 600, 106);
         assert!(get_dao_staked_balance(@0x5, @0x3) == 300, 107); // Should remain unchanged
         assert!(get_staked_balance(@0x3) == 900, 108);
         

@@ -1,5 +1,5 @@
 script {
-    use movedaoaddrx::dao_core_file as dao_core;
+    use movedao_addrx::dao_core_file as dao_core;
     use std::vector;
 
     fun fix_registry(admin: &signer) {

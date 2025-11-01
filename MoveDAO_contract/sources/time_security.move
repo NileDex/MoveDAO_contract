@@ -1,9 +1,9 @@
 // Time security - prevents timestamp manipulation attacks and ensures secure time-based operations
-module movedaoaddrx::time_security {
+module movedao_addrx::time_security {
     use std::vector;
     use aptos_framework::timestamp;
-    use movedaoaddrx::errors;
-    use movedaoaddrx::safe_math;
+    use movedao_addrx::errors;
+    use movedao_addrx::safe_math;
 
     // Time constants for validation
     const MIN_VOTING_PERIOD: u64 = 3600;      // 1 hour minimum
@@ -101,7 +101,7 @@ module movedaoaddrx::time_security {
     }
 
     #[test]
-    #[expected_failure(abort_code = 5, location = movedaoaddrx::time_security)]
+    #[expected_failure(abort_code = 5, location = movedao_addrx::time_security)]
     public fun test_invalid_voting_period_too_short() {
         use aptos_framework::account;
         use aptos_framework::timestamp;

@@ -1,5 +1,5 @@
 // Activity tracking system - centralized activity logging and querying for DAO operations
-module movedaoaddrx::activity_tracker {
+module movedao_addrx::activity_tracker {
     use std::signer;
     use std::string::{Self, String};
     use std::vector;
@@ -7,7 +7,7 @@ module movedaoaddrx::activity_tracker {
     use std::table::{Self, Table};
     use aptos_framework::timestamp;
     use aptos_framework::object::{Self, Object};
-    use movedaoaddrx::errors;
+    use movedao_addrx::errors;
 
     // Activity types
     const ACTIVITY_TYPE_DAO_CREATED: u8 = 1;
@@ -105,7 +105,7 @@ module movedaoaddrx::activity_tracker {
         transaction_hash: vector<u8>,
         block_number: u64,
     ) acquires ActivityStore, GlobalActivityTracker {
-        let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
+        let global_tracker = borrow_global<GlobalActivityTracker>(@movedao_addrx);
         let activity_store = borrow_global_mut<ActivityStore>(object::object_address(&global_tracker.tracker));
         
         let activity_id = activity_store.next_activity_id;
@@ -166,7 +166,7 @@ module movedaoaddrx::activity_tracker {
     // Query functions
     #[view]
     public fun get_dao_activities(dao_address: address): vector<u64> acquires ActivityStore, GlobalActivityTracker {
-        let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
+        let global_tracker = borrow_global<GlobalActivityTracker>(@movedao_addrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
         
         if (table::contains(&activity_store.dao_activities, dao_address)) {
@@ -178,7 +178,7 @@ module movedaoaddrx::activity_tracker {
 
     #[view]
     public fun get_user_activities(user_address: address): vector<u64> acquires ActivityStore, GlobalActivityTracker {
-        let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
+        let global_tracker = borrow_global<GlobalActivityTracker>(@movedao_addrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
         
         if (table::contains(&activity_store.user_activities, user_address)) {
@@ -190,7 +190,7 @@ module movedaoaddrx::activity_tracker {
 
     #[view]
     public fun get_activity_by_id(activity_id: u64): ActivityRecord acquires ActivityStore, GlobalActivityTracker {
-        let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
+        let global_tracker = borrow_global<GlobalActivityTracker>(@movedao_addrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
         
         assert!(table::contains(&activity_store.activities, activity_id), errors::not_found());
@@ -199,7 +199,7 @@ module movedaoaddrx::activity_tracker {
 
     #[view]
     public fun get_total_activities(): u64 acquires ActivityStore, GlobalActivityTracker {
-        let global_tracker = borrow_global<GlobalActivityTracker>(@movedaoaddrx);
+        let global_tracker = borrow_global<GlobalActivityTracker>(@movedao_addrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
         activity_store.total_activities
     }
