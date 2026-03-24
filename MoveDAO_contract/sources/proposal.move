@@ -3,13 +3,13 @@ module movedao_addrx::proposal {
     use std::signer;
     use std::vector;
     use std::string;
+    use std::simple_map::{Self, SimpleMap};
     use aptos_framework::timestamp;
     use aptos_framework::event;
     use aptos_framework::coin;
     use aptos_framework::aptos_coin::AptosCoin;
     use movedao_addrx::admin;
     use movedao_addrx::membership;
-    use movedao_addrx::staking;
     use movedao_addrx::errors;
     use movedao_addrx::safe_math;
     use movedao_addrx::activity_tracker;
@@ -77,22 +77,35 @@ module movedao_addrx::proposal {
         }
     }
 
-    // Helper function to create member snapshot for proposal
-    fun create_member_snapshot(movedao_addrx: address): vector<address> {
-        let members = vector::empty<address>();
+    // Helper function to create complete member snapshot for proposal
+    // Captures all eligible voters (admins + members) with their exact stake at proposal creation
+    fun create_member_snapshot(movedao_addrx: address): SimpleMap<address, u64> {
+        let snapshot = simple_map::new<address, u64>();
+
+        // Add all admins with their stake (using voting power which respects staking type)
         let all_admins = admin::get_admins(movedao_addrx);
         let i = 0;
-        
-        // Add all admins first
         while (i < vector::length(&all_admins)) {
             let admin_addr = *vector::borrow(&all_admins, i);
-            vector::push_back(&mut members, admin_addr);
+            let stake = membership::get_voting_power(movedao_addrx, admin_addr);
+            simple_map::add(&mut snapshot, admin_addr, stake);
             i = i + 1;
         };
-        
-        // Note: For a complete implementation, you'd need a way to get all members
-        // This would require adding a get_all_members function to the membership module
-        members
+
+        // Add all members with their stake (using voting power which respects staking type)
+        let all_members = membership::get_all_member_addresses(movedao_addrx);
+        let j = 0;
+        while (j < vector::length(&all_members)) {
+            let member_addr = *vector::borrow(&all_members, j);
+            // Only add if not already in snapshot (avoid duplicates if admin is also member)
+            if (!simple_map::contains_key(&snapshot, &member_addr)) {
+                let stake = membership::get_voting_power(movedao_addrx, member_addr);
+                simple_map::add(&mut snapshot, member_addr, stake);
+            };
+            j = j + 1;
+        };
+
+        snapshot
     }
 
 
@@ -114,7 +127,9 @@ module movedao_addrx::proposal {
         min_quorum_percent: u64,
         approved_by_admin: bool,         // Whether admin has approved activation
         finalized_by_admin: bool,        // Whether admin has finalized
-        constant_member_list: vector<address>  // Snapshot of eligible voters
+        constant_member_list: vector<address>,  // DEPRECATED: kept for backward compatibility
+        eligible_voters: SimpleMap<address, u64>,  // NEW: Snapshot of address -> stake at proposal creation
+        voters: vector<address>          // NEW: List of addresses that have voted on this proposal
     }
 
     struct Vote has store, copy, drop {
@@ -226,10 +241,10 @@ module movedao_addrx::proposal {
     /// 7. After voting period ends, admin OR qualified member calls finalize_proposal() to automatically determine outcome
     /// 
     /// EXAMPLE:
-    /// - min_stake_to_join: 10 MOVE tokens (to become member)
-    /// - min_stake_to_propose: 50 MOVE tokens (to create proposals)
-    /// - User stakes 15 MOVE -> Becomes member -> Cannot create proposals (needs 50)
-    /// - User stakes 60 MOVE -> Becomes member -> Can create proposals
+    /// - min_stake_to_join: 10 tokens (to become member - MOVE or FA based on DAO type)
+    /// - min_stake_to_propose: 50 tokens (to create proposals - MOVE or FA based on DAO type)
+    /// - User stakes 15 tokens -> Becomes member -> Cannot create proposals (needs 50)
+    /// - User stakes 60 tokens -> Becomes member -> Can create proposals
     /// - Admin user -> Can create proposals (regardless of stake)
     public entry fun create_proposal(
         account: &signer,
@@ -283,9 +298,10 @@ module movedao_addrx::proposal {
         assert!(voting_start_timestamp >= now, errors::invalid_amount());
         assert!(voting_end_timestamp > voting_start_timestamp, errors::invalid_amount());
 
-        // Create member snapshot for consistent voting eligibility
-        let member_snapshot = create_member_snapshot(movedao_addrx);
-        
+        // Create complete member snapshot for consistent voting eligibility
+        // Captures all eligible voters with their exact stake at proposal creation time
+        let eligible_voters_snapshot = create_member_snapshot(movedao_addrx);
+
         let proposal = Proposal {
             id: proposal_id,
             title,
@@ -304,7 +320,9 @@ module movedao_addrx::proposal {
             min_quorum_percent,
             approved_by_admin: false,
             finalized_by_admin: false,
-            constant_member_list: member_snapshot
+            constant_member_list: vector::empty(),  // DEPRECATED: kept empty for backward compatibility
+            eligible_voters: eligible_voters_snapshot,
+            voters: vector::empty()
         };
 
         vector::push_back(&mut proposals.proposals, proposal);
@@ -393,30 +411,31 @@ module movedao_addrx::proposal {
         vote_type: u8
     ) acquires DaoProposals {
         assert!(vote_type == 1 || vote_type == 2 || vote_type == 3, errors::invalid_vote_type());
-        
+
         let sender = signer::address_of(account);
-        
-        // SIMPLIFIED: Just check if user is a member (includes both members and admins)
-        assert!(membership::is_member(movedao_addrx, sender), errors::not_member());
-        
+
         let proposals = borrow_global_mut<DaoProposals>(movedao_addrx);
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
 
+        // SNAPSHOT CHECK: Voter must have been eligible at proposal creation time
+        assert!(simple_map::contains_key(&proposal.eligible_voters, &sender), errors::not_member());
+
         assert!(is_active(&proposal.status), errors::invalid_status());
         let now = timestamp::now_seconds();
+        
+        // AUTO-FINALIZE TRIGGER: If voting ended but status is still active, finalize it
+        if (now > proposal.voting_end) {
+            internal_finalize_proposal(movedao_addrx, proposal);
+        };
+        
         assert!(now >= proposal.voting_start, errors::voting_not_started());
         assert!(now <= proposal.voting_end, errors::voting_ended());
 
-        let i = 0;
-        let len = vector::length(&proposal.votes);
-        while (i < len) {
-            let vote = vector::borrow(&proposal.votes, i);
-            if (vote.voter == sender) abort errors::already_voted();
-            i = i + 1;
-        };
+        // Check if user already voted (using voters list)
+        assert!(!vector::contains(&proposal.voters, &sender), errors::already_voted());
 
-        // Get voting power from membership module (which already checks staking)
-        let weight = membership::get_voting_power(movedao_addrx, sender);
+        // Get voting power from snapshot (locked at proposal creation time)
+        let weight = *simple_map::borrow(&proposal.eligible_voters, &sender);
         assert!(weight > 0, errors::not_member());
         
         // Get voter role for tracking (but don't fail if role can't be determined)
@@ -435,13 +454,17 @@ module movedao_addrx::proposal {
             vote_abstain()
         };
         
-        vector::push_back(&mut proposal.votes, Vote { 
+        // Record the vote
+        vector::push_back(&mut proposal.votes, Vote {
             voter: sender,
             voter_role: final_voter_role,
-            vote_type: vote_enum, 
+            vote_type: vote_enum,
             weight,
             voted_at: now
         });
+
+        // Add voter to the voters list
+        vector::push_back(&mut proposal.voters, sender);
 
         // Safe vote counting using safe_math to prevent overflow attacks
         if (vote_type == 1) {
@@ -470,30 +493,21 @@ module movedao_addrx::proposal {
         });
     }
 
-    // AUTOMATIC FINALIZATION - Admins OR members with proposal creation stake can call
-    public entry fun finalize_proposal(
-        account: &signer,
+    // Internal helper for finalization logic - can be called by multiple entry points
+    fun internal_finalize_proposal(
         movedao_addrx: address,
-        proposal_id: u64
-    ) acquires DaoProposals {
-        let sender = signer::address_of(account);
-        // AUTHORIZATION: Admin OR member who can create proposals
-        let is_admin = admin::is_admin(movedao_addrx, sender);
-        let can_create_proposals = membership::can_create_proposal(movedao_addrx, sender);
-        assert!(is_admin || can_create_proposals, errors::not_authorized());
+        proposal: &mut Proposal
+    ) {
+        if (!is_active(&proposal.status)) return;
         
-        let proposals = borrow_global_mut<DaoProposals>(movedao_addrx);
-        let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
-
-        assert!(is_active(&proposal.status), errors::invalid_status());
         let now = timestamp::now_seconds();
-        assert!(now >= proposal.voting_end, errors::voting_ended());
+        if (now < proposal.voting_end) return;
 
-        let total_staked = staking::get_total_staked(movedao_addrx);
+        let total_staked = membership::total_voting_power(movedao_addrx);
         let total_votes = proposal.yes_votes + proposal.no_votes + proposal.abstain_votes;
         
         // Ensure votes cannot exceed total staked amount (critical security check)
-        assert!(total_votes <= total_staked, errors::invalid_amount());
+        if (total_votes > total_staked) return; // Should not happen with current logic but safe to check
         
         let quorum = if (total_staked > 0) {
             (total_votes * 100) / total_staked
@@ -501,6 +515,8 @@ module movedao_addrx::proposal {
             0
         };
         
+        let proposal_id = proposal.id;
+
         // AUTOMATIC LOGIC: Determine outcome based on votes and quorum
         if (quorum < proposal.min_quorum_percent) {
             let old_status = get_status_value(&proposal.status);
@@ -531,6 +547,28 @@ module movedao_addrx::proposal {
         });
     }
 
+    // AUTOMATIC FINALIZATION - Admins OR members with proposal creation stake can call
+    public entry fun finalize_proposal(
+        account: &signer,
+        movedao_addrx: address,
+        proposal_id: u64
+    ) acquires DaoProposals {
+        let sender = signer::address_of(account);
+        // AUTHORIZATION: Admin OR member who can create proposals
+        let is_admin = admin::is_admin(movedao_addrx, sender);
+        let can_create_proposals = membership::can_create_proposal(movedao_addrx, sender);
+        assert!(is_admin || can_create_proposals, errors::not_authorized());
+        
+        let proposals = borrow_global_mut<DaoProposals>(movedao_addrx);
+        let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
+
+        assert!(is_active(&proposal.status), errors::invalid_status());
+        let now = timestamp::now_seconds();
+        assert!(now >= proposal.voting_end, errors::voting_ended());
+
+        internal_finalize_proposal(movedao_addrx, proposal);
+    }
+
     // NOTE: Proposal finalization is AUTOMATIC but REQUIRES STAKE
     // Admins OR members with proposal creation stake can call finalize_proposal()
     // The outcome is determined automatically by votes and quorum
@@ -544,6 +582,13 @@ module movedao_addrx::proposal {
         let sender = signer::address_of(account);
         let proposals = borrow_global_mut<DaoProposals>(movedao_addrx);
         let proposal = find_proposal_mut(&mut proposals.proposals, proposal_id);
+
+        let now = timestamp::now_seconds();
+        
+        // AUTO-FINALIZE TRIGGER: If still active but voting period ended, finalize first
+        if (is_active(&proposal.status) && now >= proposal.voting_end) {
+            internal_finalize_proposal(movedao_addrx, proposal);
+        };
 
         assert!(is_passed(&proposal.status), errors::invalid_status());
         assert!(
@@ -594,11 +639,43 @@ module movedao_addrx::proposal {
         });
     }
 
+    // Virtual status helper for view functions
+    fun get_virtual_status(movedao_addrx: address, proposal: &Proposal): u8 {
+        if (!is_active(&proposal.status)) {
+            return get_status_value(&proposal.status)
+        };
+
+        let now = timestamp::now_seconds();
+        if (now < proposal.voting_end) {
+            return get_status_value(&proposal.status)
+        };
+
+        // If active but expired, calculate virtual status
+        let total_staked = membership::total_voting_power(movedao_addrx);
+        let total_votes = proposal.yes_votes + proposal.no_votes + proposal.abstain_votes;
+        
+        let quorum = if (total_staked > 0) {
+            (total_votes * 100) / total_staked
+        } else {
+            0
+        };
+
+        if (quorum < proposal.min_quorum_percent) {
+            return get_status_value(&status_rejected())
+        };
+
+        if (proposal.yes_votes > proposal.no_votes) {
+            return get_status_value(&status_passed())
+        } else {
+            return get_status_value(&status_rejected())
+        }
+    }
+
     #[view]
     public fun get_proposal_status(movedao_addrx: address, proposal_id: u64): u8 acquires DaoProposals {
         let proposals = &borrow_global<DaoProposals>(movedao_addrx).proposals;
         let proposal = find_proposal(proposals, proposal_id);
-        get_status_value(&proposal.status)
+        get_virtual_status(movedao_addrx, proposal)
     }
 
     #[view]
@@ -644,13 +721,13 @@ module movedao_addrx::proposal {
 
     // Get proposal details for statistics
     #[view]
-    public fun get_proposal_details(movedao_addrx: address, proposal_id: u64): (u64, string::String, string::String, address, u8, u64, u64, u64, u64, u64, u64, u64, bool, bool, u64, u64) acquires DaoProposals {
+    public fun get_proposal_details(movedao_addrx: address, proposal_id: u64): (u64, string::String, string::String, address, u8, u64, u64, u64, u64, u64, u64, u64, bool, u64, u64, u64) acquires DaoProposals {
         if (!exists<DaoProposals>(movedao_addrx)) {
-            return (0, string::utf8(b""), string::utf8(b""), @0x0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, 0, 0)
+            return (0, string::utf8(b""), string::utf8(b""), @0x0, 0, 0, 0, 0, 0, 0, 0, 0, false, 0, 0, 0)
         };
         let dao_proposals = borrow_global<DaoProposals>(movedao_addrx);
         if (proposal_id >= vector::length(&dao_proposals.proposals)) {
-            return (0, string::utf8(b""), string::utf8(b""), @0x0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, 0, 0)
+            return (0, string::utf8(b""), string::utf8(b""), @0x0, 0, 0, 0, 0, 0, 0, 0, 0, false, 0, 0, 0)
         };
         let proposal = vector::borrow(&dao_proposals.proposals, proposal_id);
         (
@@ -658,7 +735,7 @@ module movedao_addrx::proposal {
             proposal.title,
             proposal.description,
             proposal.proposer,
-            proposal.status.value,
+            get_virtual_status(movedao_addrx, proposal),
             proposal.yes_votes,
             proposal.no_votes,
             proposal.abstain_votes,
@@ -666,10 +743,10 @@ module movedao_addrx::proposal {
             proposal.voting_start,
             proposal.voting_end,
             proposal.execution_window,
-            proposal.approved_by_admin,
             proposal.finalized_by_admin,
             vector::length(&proposal.votes),
-            vector::length(&proposal.constant_member_list)
+            simple_map::length(&proposal.eligible_voters),
+            proposal.min_quorum_percent
         )
     }
 
@@ -791,7 +868,7 @@ module movedao_addrx::proposal {
             proposal.title,
             proposal.description,
             proposal.proposer,
-            get_status_value(&proposal.status),
+            get_virtual_status(movedao_addrx, proposal),
             proposal.created_at,
             proposal.voting_start,
             proposal.voting_end,

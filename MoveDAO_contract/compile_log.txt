@@ -1,0 +1,357 @@
+﻿aptos : Compiling, may take 
+a little while to download 
+git dependencies...
+At line:1 char:1
++ aptos move compile 2>&1 | 
+Out-File -FilePath 
+compile_log.txt -Encodin ...
++ ~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: (Compili  
+  ng, may ...dependencies.   
+ ..:String) [], RemoteExc    
+eption
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+UPDATING GIT DEPENDENCY https
+://github.com/movementlabsxyz
+/aptos-core.git
+INCLUDING DEPENDENCY 
+AptosFramework
+INCLUDING DEPENDENCY 
+AptosStdlib
+INCLUDING DEPENDENCY 
+MoveStdlib
+BUILDING MoveDAO-official
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:6:26
+  [0m[36mΓöé[0m
+[0m[36m6[0m [0m[36mΓöé[0m     use aptos_framework::[0m[33mtimestamp[0m;
+  [0m[36mΓöé[0m                          [0m[33m^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'timestamp'. Consider removing it[0m
+
+[0m[1m[38;5;11mwarning[W01004][0m[1m: invalid documentation comment[0m
+   [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:32:5
+   [0m[36mΓöé[0m
+[0m[36m32[0m [0m[36mΓöé[0m     [0m[33m/// Search all DAOs by query string (searches name, subname, description)[0m
+   [0m[36mΓöé[0m     [0m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[33mDocumentation comment cannot be matched to a language item[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:48:17
+     [0m[36mΓöé[0m
+[0m[36m  48[0m [0m[36mΓöé[0m             if ([0m[31mdao_core_file::dao_exists(dao_addr)[0m) {
+     [0m[36mΓöé[0m                 [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid call of '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::dao_exists'. Invalid argument for parameter 'movedao_addrx'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:998:42
+     [0m[36mΓöé[0m
+[0m[36m 998[0m [0m[36mΓöé[0m     public fun dao_exists(movedao_addrx: address): bool {
+     [0m[36mΓöé[0m                                          [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+     [0m[36m┬╖[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+   [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:49:28
+   [0m[36mΓöé[0m
+[0m[36m49[0m [0m[36mΓöé[0m                 let name = [0m[31mdao_core_file::get_dao_name[0m(dao_addr);
+   [0m[36mΓöé[0m                            [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_name' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+   [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:50:31
+   [0m[36mΓöé[0m
+[0m[36m50[0m [0m[36mΓöé[0m                 let subname = [0m[31mdao_core_file::get_dao_subname[0m(dao_addr);
+   [0m[36mΓöé[0m                               [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_subname' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+   [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:51:35
+   [0m[36mΓöé[0m
+[0m[36m51[0m [0m[36mΓöé[0m                 let description = [0m[31mdao_core_file::get_dao_description[0m(dao_addr);
+   [0m[36mΓöé[0m                                   [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_description' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:52:32
+     [0m[36mΓöé[0m
+[0m[36m  52[0m [0m[36mΓöé[0m                 let category = [0m[31mdao_core_file::get_dao_category(dao_addr)[0m;
+     [0m[36mΓöé[0m                                [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid call of '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::get_dao_category'. Invalid argument for parameter 'movedao_addrx'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:1091:39
+     [0m[36mΓöé[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+     [0m[36m┬╖[0m
+[0m[36m1191[0m [0m[36mΓöé[0m     public fun get_dao_category(movedao_addrx: address): string::String acquires DAOInfo {
+     [0m[36mΓöé[0m                                                [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+   [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:53:34
+   [0m[36mΓöé[0m
+[0m[36m53[0m [0m[36mΓöé[0m                 let created_at = [0m[31mdao_core_file::get_dao_created_at[0m(dao_addr);
+   [0m[36mΓöé[0m                                  [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_created_at' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:67:34
+     [0m[36mΓöé[0m
+[0m[36m  11[0m [0m[36mΓöé[0m         address: address,
+     [0m[36mΓöé[0m                  [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+     [0m[36m┬╖[0m
+[0m[36m  67[0m [0m[36mΓöé[0m                         address: [0m[31mdao_addr[0m,
+     [0m[36mΓöé[0m                                  [0m[31m^^^^^^^^[0m [0m[31mInvalid argument for field 'address' for '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::filter::DAOSearchResult'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:1091:39
+     [0m[36mΓöé[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+
+[0m[1m[38;5;11mwarning[W01004][0m[1m: invalid documentation comment[0m
+   [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:87:5
+   [0m[36mΓöé[0m
+[0m[36m87[0m [0m[36mΓöé[0m     [0m[33m/// Filter DAOs by category[0m
+   [0m[36mΓöé[0m     [0m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[33mDocumentation comment cannot be matched to a language item[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:103:17
+     [0m[36mΓöé[0m
+[0m[36m 103[0m [0m[36mΓöé[0m             if ([0m[31mdao_core_file::dao_exists(dao_addr)[0m) {
+     [0m[36mΓöé[0m                 [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid call of '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::dao_exists'. Invalid argument for parameter 'movedao_addrx'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:998:42
+     [0m[36mΓöé[0m
+[0m[36m 998[0m [0m[36mΓöé[0m     public fun dao_exists(movedao_addrx: address): bool {
+     [0m[36mΓöé[0m                                          [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+     [0m[36m┬╖[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:104:36
+     [0m[36mΓöé[0m
+[0m[36m 104[0m [0m[36mΓöé[0m                 let dao_category = [0m[31mdao_core_file::get_dao_category(dao_addr)[0m;
+     [0m[36mΓöé[0m                                    [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid call of '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::get_dao_category'. Invalid argument for parameter 'movedao_addrx'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:1091:39
+     [0m[36mΓöé[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+     [0m[36m┬╖[0m
+[0m[36m1191[0m [0m[36mΓöé[0m     public fun get_dao_category(movedao_addrx: address): string::String acquires DAOInfo {
+     [0m[36mΓöé[0m                                                [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:109:32
+    [0m[36mΓöé[0m
+[0m[36m109[0m [0m[36mΓöé[0m                     let name = [0m[31mdao_core_file::get_dao_name[0m(dao_addr);
+    [0m[36mΓöé[0m                                [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_name' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:110:35
+    [0m[36mΓöé[0m
+[0m[36m110[0m [0m[36mΓöé[0m                     let subname = [0m[31mdao_core_file::get_dao_subname[0m(dao_addr);
+    [0m[36mΓöé[0m                                   [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_subname' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:111:39
+    [0m[36mΓöé[0m
+[0m[36m111[0m [0m[36mΓöé[0m                     let description = [0m[31mdao_core_file::get_dao_description[0m(dao_addr);
+    [0m[36mΓöé[0m                                       [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_description' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:112:38
+    [0m[36mΓöé[0m
+[0m[36m112[0m [0m[36mΓöé[0m                     let created_at = [0m[31mdao_core_file::get_dao_created_at[0m(dao_addr);
+    [0m[36mΓöé[0m                                      [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_created_at' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:115:34
+     [0m[36mΓöé[0m
+[0m[36m  11[0m [0m[36mΓöé[0m         address: address,
+     [0m[36mΓöé[0m                  [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+     [0m[36m┬╖[0m
+[0m[36m 115[0m [0m[36mΓöé[0m                         address: [0m[31mdao_addr[0m,
+     [0m[36mΓöé[0m                                  [0m[31m^^^^^^^^[0m [0m[31mInvalid argument for field 'address' for '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::filter::DAOSearchResult'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:1091:39
+     [0m[36mΓöé[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+
+[0m[1m[38;5;11mwarning[W01004][0m[1m: invalid documentation comment[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:132:5
+    [0m[36mΓöé[0m
+[0m[36m132[0m [0m[36mΓöé[0m     [0m[33m/// Get newest DAOs[0m
+    [0m[36mΓöé[0m     [0m[33m^^^^^^^^^^^^^^^^^^^^[0m [0m[33mDocumentation comment cannot be matched to a language item[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:144:17
+     [0m[36mΓöé[0m
+[0m[36m 144[0m [0m[36mΓöé[0m             if ([0m[31mdao_core_file::dao_exists(dao_addr)[0m) {
+     [0m[36mΓöé[0m                 [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid call of '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::dao_exists'. Invalid argument for parameter 'movedao_addrx'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:998:42
+     [0m[36mΓöé[0m
+[0m[36m 998[0m [0m[36mΓöé[0m     public fun dao_exists(movedao_addrx: address): bool {
+     [0m[36mΓöé[0m                                          [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+     [0m[36m┬╖[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:145:28
+    [0m[36mΓöé[0m
+[0m[36m145[0m [0m[36mΓöé[0m                 let name = [0m[31mdao_core_file::get_dao_name[0m(dao_addr);
+    [0m[36mΓöé[0m                            [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_name' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:146:31
+    [0m[36mΓöé[0m
+[0m[36m146[0m [0m[36mΓöé[0m                 let subname = [0m[31mdao_core_file::get_dao_subname[0m(dao_addr);
+    [0m[36mΓöé[0m                               [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_subname' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:147:35
+    [0m[36mΓöé[0m
+[0m[36m147[0m [0m[36mΓöé[0m                 let description = [0m[31mdao_core_file::get_dao_description[0m(dao_addr);
+    [0m[36mΓöé[0m                                   [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_description' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:148:32
+     [0m[36mΓöé[0m
+[0m[36m 148[0m [0m[36mΓöé[0m                 let category = [0m[31mdao_core_file::get_dao_category(dao_addr)[0m;
+     [0m[36mΓöé[0m                                [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid call of '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::get_dao_category'. Invalid argument for parameter 'movedao_addrx'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:1091:39
+     [0m[36mΓöé[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+     [0m[36m┬╖[0m
+[0m[36m1191[0m [0m[36mΓöé[0m     public fun get_dao_category(movedao_addrx: address): string::String acquires DAOInfo {
+     [0m[36mΓöé[0m                                                [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:149:34
+    [0m[36mΓöé[0m
+[0m[36m149[0m [0m[36mΓöé[0m                 let created_at = [0m[31mdao_core_file::get_dao_created_at[0m(dao_addr);
+    [0m[36mΓöé[0m                                  [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_created_at' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:152:30
+     [0m[36mΓöé[0m
+[0m[36m  11[0m [0m[36mΓöé[0m         address: address,
+     [0m[36mΓöé[0m                  [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+     [0m[36m┬╖[0m
+[0m[36m 152[0m [0m[36mΓöé[0m                     address: [0m[31mdao_addr[0m,
+     [0m[36mΓöé[0m                              [0m[31m^^^^^^^^[0m [0m[31mInvalid argument for field 'address' for '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::filter::DAOSearchResult'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:1091:39
+     [0m[36mΓöé[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+
+[0m[1m[38;5;11mwarning[W01004][0m[1m: invalid documentation comment[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:171:5
+    [0m[36mΓöé[0m
+[0m[36m171[0m [0m[36mΓöé[0m     [0m[33m/// Advanced filter with multiple criteria[0m
+    [0m[36mΓöé[0m     [0m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[33mDocumentation comment cannot be matched to a language item[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:194:17
+     [0m[36mΓöé[0m
+[0m[36m 194[0m [0m[36mΓöé[0m             if ([0m[31mdao_core_file::dao_exists(dao_addr)[0m) {
+     [0m[36mΓöé[0m                 [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid call of '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::dao_exists'. Invalid argument for parameter 'movedao_addrx'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:998:42
+     [0m[36mΓöé[0m
+[0m[36m 998[0m [0m[36mΓöé[0m     public fun dao_exists(movedao_addrx: address): bool {
+     [0m[36mΓöé[0m                                          [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+     [0m[36m┬╖[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:195:28
+    [0m[36mΓöé[0m
+[0m[36m195[0m [0m[36mΓöé[0m                 let name = [0m[31mdao_core_file::get_dao_name[0m(dao_addr);
+    [0m[36mΓöé[0m                            [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_name' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:196:31
+    [0m[36mΓöé[0m
+[0m[36m196[0m [0m[36mΓöé[0m                 let subname = [0m[31mdao_core_file::get_dao_subname[0m(dao_addr);
+    [0m[36mΓöé[0m                               [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_subname' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:197:35
+    [0m[36mΓöé[0m
+[0m[36m197[0m [0m[36mΓöé[0m                 let description = [0m[31mdao_core_file::get_dao_description[0m(dao_addr);
+    [0m[36mΓöé[0m                                   [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_description' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:198:36
+     [0m[36mΓöé[0m
+[0m[36m 198[0m [0m[36mΓöé[0m                 let dao_category = [0m[31mdao_core_file::get_dao_category(dao_addr)[0m;
+     [0m[36mΓöé[0m                                    [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid call of '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::get_dao_category'. Invalid argument for parameter 'movedao_addrx'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:1091:39
+     [0m[36mΓöé[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+     [0m[36m┬╖[0m
+[0m[36m1191[0m [0m[36mΓöé[0m     public fun get_dao_category(movedao_addrx: address): string::String acquires DAOInfo {
+     [0m[36mΓöé[0m                                                [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+
+[0m[1m[38;5;9merror[E03003][0m[1m: unbound module member[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:199:34
+    [0m[36mΓöé[0m
+[0m[36m199[0m [0m[36mΓöé[0m                 let created_at = [0m[31mdao_core_file::get_dao_created_at[0m(dao_addr);
+    [0m[36mΓöé[0m                                  [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid module access. Unbound function 'get_dao_created_at' in module '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file'[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:243:34
+     [0m[36mΓöé[0m
+[0m[36m  11[0m [0m[36mΓöé[0m         address: address,
+     [0m[36mΓöé[0m                  [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+     [0m[36m┬╖[0m
+[0m[36m 243[0m [0m[36mΓöé[0m                         address: [0m[31mdao_addr[0m,
+     [0m[36mΓöé[0m                                  [0m[31m^^^^^^^^[0m [0m[31mInvalid argument for field 'address' for '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::filter::DAOSearchResult'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:1091:39
+     [0m[36mΓöé[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+
+[0m[1m[38;5;11mwarning[W01004][0m[1m: invalid documentation comment[0m
+    [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:271:5
+    [0m[36mΓöé[0m
+[0m[36m271[0m [0m[36mΓöé[0m     [0m[33m/// Get all unique categories[0m
+    [0m[36mΓöé[0m     [0m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[33mDocumentation comment cannot be matched to a language item[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:283:17
+     [0m[36mΓöé[0m
+[0m[36m 283[0m [0m[36mΓöé[0m             if ([0m[31mdao_core_file::dao_exists(dao_addr)[0m) {
+     [0m[36mΓöé[0m                 [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid call of '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::dao_exists'. Invalid argument for parameter 'movedao_addrx'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:998:42
+     [0m[36mΓöé[0m
+[0m[36m 998[0m [0m[36mΓöé[0m     public fun dao_exists(movedao_addrx: address): bool {
+     [0m[36mΓöé[0m                                          [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+     [0m[36m┬╖[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+
+[0m[1m[38;5;9merror[E04007][0m[1m: incompatible types[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\filter.move:284:32
+     [0m[36mΓöé[0m
+[0m[36m 284[0m [0m[36mΓöé[0m                 let category = [0m[31mdao_core_file::get_dao_category(dao_addr)[0m;
+     [0m[36mΓöé[0m                                [0m[31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[31mInvalid call of '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::get_dao_category'. Invalid argument for parameter 'movedao_addrx'[0m
+     [0m[36mΓöé[0m
+     [0m[36mΓöîΓöÇ[0m C:\Users\josep\Desktop\CEDRAMOVEMENT APPLICATION\MoveDAO\MoveDAO_v2_\MoveDAO_contract\sources\dao_core.move:1091:39
+     [0m[36mΓöé[0m
+[0m[36m1091[0m [0m[36mΓöé[0m     public fun get_all_daos(): vector<DAOSummary> acquires DAORegistry, DAOInfo {
+     [0m[36mΓöé[0m                                       [0m[36m----------[0m [0m[36mGiven: '(movedao_addrx=0xEB30F24EAB56506B8ABAEA431FB0C6F6AA64622018298B54B1C3D40006FC75)::dao_core_file::DAOSummary'[0m
+     [0m[36m┬╖[0m
+[0m[36m1191[0m [0m[36mΓöé[0m     public fun get_dao_category(movedao_addrx: address): string::String acquires DAOInfo {
+     [0m[36mΓöé[0m                                                [0m[36m-------[0m [0m[36mExpected: 'address'[0m
+
+{
+  "Error": "Move compilation failed: Compilation error"
+}

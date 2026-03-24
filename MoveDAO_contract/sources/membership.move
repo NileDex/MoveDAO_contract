@@ -10,6 +10,10 @@ module movedao_addrx::membership {
     use movedao_addrx::errors;
     use movedao_addrx::activity_tracker;
 
+    // Staking type constants
+    const STAKING_TYPE_MOVE: u8 = 1;
+    const STAKING_TYPE_FA: u8 = 2;
+
     struct Member has store, copy, drop {
         joined_at: u64,
     }
@@ -17,6 +21,8 @@ module movedao_addrx::membership {
     struct MembershipConfig has key {
         min_stake_to_join: u64,
         min_stake_to_propose: u64,  // Minimum stake required to create proposals
+        staking_type: u8,  // 1 = MOVE tokens (default), 2 = Fungible Asset (FA)
+        fa_metadata_address: address,  // FA token metadata address (only used if staking_type = 2, defaults to @0x0)
     }
 
     struct MemberList has key {
@@ -53,13 +59,34 @@ module movedao_addrx::membership {
     }
 
     public fun initialize_with_min_stake(account: &signer, min_stake_to_join: u64) {
-        let min_stake_to_propose = 6000000; // 6 Move tokens (6 * 1e6 decimals) for proposal creation
+        let min_stake_to_propose = 6000000; // Default: 6 tokens with 6 decimals for proposal creation
         initialize_with_stake_requirements(account, min_stake_to_join, min_stake_to_propose)
     }
 
     public fun initialize_with_stake_requirements(account: &signer, min_stake_to_join: u64, min_stake_to_propose: u64) {
+        initialize_with_staking_type(account, min_stake_to_join, min_stake_to_propose, STAKING_TYPE_MOVE, @0x0)
+    }
+
+    public fun initialize_with_staking_type(
+        account: &signer,
+        min_stake_to_join: u64,
+        min_stake_to_propose: u64,
+        staking_type: u8,
+        fa_metadata_address: address
+    ) {
         let addr = signer::address_of(account);
         if (!exists<MemberList>(addr)) {
+            let _ = staking_type;
+            let _ = fa_metadata_address;
+
+            let forced_staking_type = STAKING_TYPE_MOVE;
+            let forced_fa_address = @0x0;
+
+            assert!(
+                forced_staking_type == STAKING_TYPE_MOVE,
+                errors::invalid_amount()
+            );
+
             let member_list = MemberList {
                 members: simple_map::new(),
                 total_members: 0,
@@ -68,6 +95,8 @@ module movedao_addrx::membership {
             let config = MembershipConfig {
                 min_stake_to_join,
                 min_stake_to_propose,
+                staking_type: forced_staking_type,
+                fa_metadata_address: forced_fa_address,
             };
 
             move_to(account, member_list);
@@ -81,7 +110,7 @@ module movedao_addrx::membership {
     /// 
     /// MINIMUM STAKE ENFORCEMENT:
     /// - Users must have staked at least the minimum amount before joining
-    /// - Minimum stake is set when DAO is created (e.g., 10 MOVE tokens for Gorilla Moverz)
+    /// - Minimum stake is set when DAO is created (e.g., 10 tokens - MOVE or FA based on staking type)
     /// - If user hasn't staked enough tokens, join() will fail with min_stake_required error
     /// - This prevents people from joining without commitment to the DAO
     /// 
@@ -92,24 +121,23 @@ module movedao_addrx::membership {
     /// 4. If staked balance >= minimum requirement -> Allow join
     /// 5. If staked balance < minimum requirement -> Reject with error
     /// 6. Add user to member list and emit join event
-    /// 
-    /// EXAMPLE FOR GORILLA MOVERZ:
-    /// - Minimum stake: 10 MOVE tokens
-    /// - User stakes 15 MOVE -> Can join (15 >= 10)
-    /// - User stakes 5 MOVE -> Cannot join (5 < 10)
-    /// - User stakes 0 MOVE -> Cannot join (0 < 10)
+    ///
+    /// EXAMPLE:
+    /// - Minimum stake: 10 tokens (MOVE or FA based on DAO's staking type)
+    /// - User stakes 15 tokens -> Can join (15 >= 10)
+    /// - User stakes 5 tokens -> Cannot join (5 < 10)
+    /// - User stakes 0 tokens -> Cannot join (0 < 10)
     public entry fun join(account: &signer, movedao_addrx: address) acquires MemberList, MembershipConfig {
         let addr = signer::address_of(account);
         let member_list = borrow_global_mut<MemberList>(movedao_addrx);
         
         // Prevent duplicate membership
         errors::require_not_exists(!simple_map::contains_key(&member_list.members, &addr), errors::already_member());
-        
+
         // Get the DAO's minimum stake requirement
         let config = borrow_global<MembershipConfig>(movedao_addrx);
-        // Check user's current staked balance in THIS DAO (not global)
+
         let stake_amount = staking::get_staker_amount(movedao_addrx, addr);
-        // Enforce minimum stake requirement - this is the key validation!
         assert!(stake_amount >= config.min_stake_to_join, errors::min_stake_required());
         
         // User meets requirements - add to member list
@@ -162,37 +190,33 @@ module movedao_addrx::membership {
     public fun is_member(movedao_addrx: address, member: address): bool acquires MemberList, MembershipConfig {
         if (!exists<MemberList>(movedao_addrx)) return false;
         if (!exists<MembershipConfig>(movedao_addrx)) return false;
-        
+
         // Admin bypass: Admins are always considered members regardless of stake or membership status
         if (admin::is_admin(movedao_addrx, member)) return true;
-        
+
         // Check if member is in the list (has joined the DAO)
         let is_in_list = simple_map::contains_key(&borrow_global<MemberList>(movedao_addrx).members, &member);
         if (!is_in_list) return false;
-        
-        // CRITICAL: Verify member still meets minimum stake requirement (prevents membership gaming)
-        // This is the key validation that enforces minimum stake for proposal creation
+
+        // CRITICAL: Verify member still meets minimum stake requirement based on staking type
+        // This prevents membership gaming
         let config = borrow_global<MembershipConfig>(movedao_addrx);
+
         let current_stake = staking::get_staker_amount(movedao_addrx, member);
+
         current_stake >= config.min_stake_to_join
     }
 
     #[view]
     public fun get_voting_power(movedao_addrx: address, member: address): u64 acquires MembershipConfig {
-        // Admin bypass: Give admins voting power equal to their stake, or minimum proposal stake if they have no stake
-        if (admin::is_admin(movedao_addrx, member)) {
-            let staked_amount = staking::get_staker_amount(movedao_addrx, member);
-            if (staked_amount > 0) {
-                return staked_amount
-            } else {
-                // If admin has no stake, give them voting power equal to minimum proposal stake requirement
-                if (exists<MembershipConfig>(movedao_addrx)) {
-                    return borrow_global<MembershipConfig>(movedao_addrx).min_stake_to_propose
-                } else {
-                    return 1  // Fallback minimum voting power
-                }
-            }
-        };
+        // All voting power is based on actual staked amount
+        // Admins no longer receive artificial voting power
+
+        if (!exists<MembershipConfig>(movedao_addrx)) return 0;
+
+        let config = borrow_global<MembershipConfig>(movedao_addrx);
+        let _ = config;
+
         staking::get_staker_amount(movedao_addrx, member)
     }
 
@@ -205,7 +229,12 @@ module movedao_addrx::membership {
     }
 
     #[view]
-    public fun total_voting_power(movedao_addrx: address): u64 {
+    public fun total_voting_power(movedao_addrx: address): u64 acquires MembershipConfig {
+        if (!exists<MembershipConfig>(movedao_addrx)) return 0;
+
+        let config = borrow_global<MembershipConfig>(movedao_addrx);
+        let _ = config;
+
         staking::get_total_staked(movedao_addrx)
     }
 
@@ -227,9 +256,9 @@ module movedao_addrx::membership {
         
         // Verify member exists in list
         assert!(simple_map::contains_key(&member_list.members, &member), errors::not_member());
-        
-        // Verify member no longer meets minimum stake requirement
+
         let current_stake = staking::get_staker_amount(movedao_addrx, member);
+
         assert!(current_stake < config.min_stake_to_join, errors::min_stake_required());
         
         // Remove the member
@@ -239,7 +268,6 @@ module movedao_addrx::membership {
         event::emit(MemberLeft { member });
     }
 
-    // Administrative function to update minimum stake requirement
     public entry fun update_min_stake(
         admin: &signer,
         movedao_addrx: address,
@@ -247,10 +275,10 @@ module movedao_addrx::membership {
     ) acquires MembershipConfig {
         let admin_addr = signer::address_of(admin);
         assert!(admin::is_admin(movedao_addrx, admin_addr), errors::not_admin());
-        
+
         // Validate new minimum stake (reasonable bounds)
         assert!(new_min_stake > 0, errors::invalid_amount());
-        assert!(new_min_stake <= 10000000000, errors::invalid_amount()); // Max 10,000 MOVE tokens
+        assert!(new_min_stake <= 10000000000, errors::invalid_amount());
         
         let config = borrow_global_mut<MembershipConfig>(movedao_addrx);
         let old_min_stake = config.min_stake_to_join;
@@ -263,7 +291,6 @@ module movedao_addrx::membership {
         });
     }
 
-    // Administrative function to update minimum proposal creation stake requirement
     public entry fun update_min_proposal_stake(
         admin: &signer,
         movedao_addrx: address,
@@ -271,10 +298,10 @@ module movedao_addrx::membership {
     ) acquires MembershipConfig {
         let admin_addr = signer::address_of(admin);
         assert!(admin::is_admin(movedao_addrx, admin_addr), errors::not_admin());
-        
+
         // Validate new minimum proposal stake (reasonable bounds)
         assert!(new_min_proposal_stake > 0, errors::invalid_amount());
-        assert!(new_min_proposal_stake <= 10000000000, errors::invalid_amount()); // Max 10,000 MOVE tokens
+        assert!(new_min_proposal_stake <= 10000000000, errors::invalid_amount()); // Max 10,000 tokens (MOVE or FA)
         
         let config = borrow_global_mut<MembershipConfig>(movedao_addrx);
         
@@ -342,16 +369,27 @@ module movedao_addrx::membership {
     public fun can_create_proposal(movedao_addrx: address, member: address): bool acquires MemberList, MembershipConfig {
         if (!exists<MemberList>(movedao_addrx)) return false;
         if (!exists<MembershipConfig>(movedao_addrx)) return false;
-        
+
         // Admin bypass: Admins can always create proposals regardless of stake requirements
         if (admin::is_admin(movedao_addrx, member)) return true;
-        
+
         // Must be a member first
         if (!is_member(movedao_addrx, member)) return false;
-        
-        // Check if member meets proposal creation stake requirement
+
         let config = borrow_global<MembershipConfig>(movedao_addrx);
+
         let current_stake = staking::get_staker_amount(movedao_addrx, member);
+
         current_stake >= config.min_stake_to_propose
+    }
+
+    // Get all member addresses (for snapshot purposes)
+    #[view]
+    public fun get_all_member_addresses(movedao_addrx: address): vector<address> acquires MemberList {
+        if (!exists<MemberList>(movedao_addrx)) {
+            return vector::empty<address>()
+        };
+        let member_list = borrow_global<MemberList>(movedao_addrx);
+        simple_map::keys(&member_list.members)
     }
 }

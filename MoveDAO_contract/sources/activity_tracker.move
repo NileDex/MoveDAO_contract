@@ -23,6 +23,7 @@ module movedao_addrx::activity_tracker {
     const ACTIVITY_TYPE_REWARD_CLAIMED: u8 = 11;
     const ACTIVITY_TYPE_LAUNCHPAD_CREATED: u8 = 12;
     const ACTIVITY_TYPE_LAUNCHPAD_INVESTMENT: u8 = 13;
+    const ACTIVITY_TYPE_FEATURED_BADGE_PURCHASE: u8 = 14;
 
     // Main activity event
     #[event]
@@ -202,6 +203,12 @@ module movedao_addrx::activity_tracker {
         let global_tracker = borrow_global<GlobalActivityTracker>(@movedao_addrx);
         let activity_store = borrow_global<ActivityStore>(object::object_address(&global_tracker.tracker));
         activity_store.total_activities
+    }
+
+    // Check if activity tracker is initialized
+    #[view]
+    public fun is_initialized(): bool {
+        exists<GlobalActivityTracker>(@movedao_addrx)
     }
 
     // Helper functions for other modules to emit activities

@@ -14,7 +14,7 @@ module movedao_addrx::staking {
     use movedao_addrx::safe_math;
     use movedao_addrx::activity_tracker;
 
-    // Activity tracking events
+    // Activity tracking events - kept for backward compatibility
     #[event]
     struct StakeEvent has drop, store {
         movedao_addrx: address,
@@ -118,6 +118,12 @@ module movedao_addrx::staking {
 
     #[test_only]
     public entry fun test_init_module(sender: &signer) {
+        let addr = signer::address_of(sender);
+        // Create account if it doesn't exist (required for activity_tracker)
+        if (!account::exists_at(addr)) {
+            account::create_account_for_test(addr);
+        };
+        activity_tracker::initialize(sender);
         init_staking(sender);
     }
 
@@ -191,17 +197,18 @@ module movedao_addrx::staking {
         let vault = borrow_global_mut<Vault>(get_vault_addr(movedao_addrx));
         coin::merge(&mut vault.balance, coins);
 
-        // Log stake activity
-        activity_tracker::emit_stake_activity(
-            movedao_addrx,            // dao_address
-            from,                    // staker
-            amount,                  // amount
-            vector::empty<u8>(),     // transaction_hash
-            0                        // block_number
-        );
+        // Log stake activity (only if activity tracker is initialized)
+        if (activity_tracker::is_initialized()) {
+            activity_tracker::emit_stake_activity(
+                movedao_addrx,            // dao_address
+                from,                    // staker
+                amount,                  // amount
+                vector::empty<u8>(),     // transaction_hash
+                0                        // block_number
+            );
+        };
 
-        // Emit stake event (for activity tracking)
-        // Note: transaction hash not available in Move; keep empty vector for compatibility
+        // Emit stake event
         event::emit(StakeEvent {
             movedao_addrx: movedao_addrx,
             staker: from,
@@ -256,16 +263,18 @@ module movedao_addrx::staking {
             registry.total_stakers = safe_math::safe_sub(registry.total_stakers, 1);
         };
 
-        // Log unstake activity
-        activity_tracker::emit_unstake_activity(
-            movedao_addrx,            // dao_address
-            from,                    // staker
-            amount,                  // amount
-            vector::empty<u8>(),     // transaction_hash
-            0                        // block_number
-        );
+        // Log unstake activity (only if activity tracker is initialized)
+        if (activity_tracker::is_initialized()) {
+            activity_tracker::emit_unstake_activity(
+                movedao_addrx,            // dao_address
+                from,                    // staker
+                amount,                  // amount
+                vector::empty<u8>(),     // transaction_hash
+                0                        // block_number
+            );
+        };
 
-        // Emit unstake event (for activity tracking)
+        // Emit unstake event
         event::emit(UnstakeEvent {
             movedao_addrx: movedao_addrx,
             staker: from,
@@ -401,8 +410,8 @@ module movedao_addrx::staking {
 
     #[test(aptos_framework = @0x1, creator = @movedao_addrx, alice = @0x3)]
     public entry fun test_staking(
-        aptos_framework: &signer, 
-        creator: &signer, 
+        aptos_framework: &signer,
+        creator: &signer,
         alice: &signer
     ) acquires StakerProfile, Vault, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
@@ -417,7 +426,9 @@ module movedao_addrx::staking {
         assert!(get_staked_balance(@0x3) == 500, 100);
         assert!(is_staker(@0x3), 101);
 
-        // No need to wait - can unstake immediately
+        // Wait for minimum staking period (3600 seconds)
+        timestamp::update_global_time_for_test_secs(3601);
+
         unstake(alice, @movedao_addrx, 200);
         assert!(get_staked_balance(@0x3) == 300, 102);
 
@@ -428,8 +439,8 @@ module movedao_addrx::staking {
     #[test(aptos_framework = @0x1, creator = @movedao_addrx, alice = @0x3)]
     #[expected_failure(abort_code = 8, location = movedao_addrx::staking)]
     public entry fun test_block_unstake_limit(
-        aptos_framework: &signer, 
-        creator: &signer, 
+        aptos_framework: &signer,
+        creator: &signer,
         alice: &signer
     ) acquires StakerProfile, Vault, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
@@ -441,11 +452,13 @@ module movedao_addrx::staking {
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
         
         stake(alice, @movedao_addrx, 500);
-        
-        // No time lock - can unstake immediately 
+
+        // Wait for minimum staking period to pass (3600 seconds)
+        timestamp::update_global_time_for_test_secs(3601);
+
         unstake(alice, @movedao_addrx, 400);
         unstake(alice, @movedao_addrx, 100);
-        unstake(alice, @movedao_addrx, 100); // Should fail
+        unstake(alice, @movedao_addrx, 100); // Should fail with insufficient balance
 
         coin::destroy_mint_cap(mint_cap);
         coin::destroy_burn_cap(burn_cap);
@@ -453,8 +466,8 @@ module movedao_addrx::staking {
 
     #[test(aptos_framework = @0x1, creator = @movedao_addrx, alice = @0x3)]
     public entry fun test_should_allow_multiple_stakes(
-        aptos_framework: &signer, 
-        creator: &signer, 
+        aptos_framework: &signer,
+        creator: &signer,
         alice: &signer
     ) acquires StakerProfile, Vault, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
@@ -475,9 +488,9 @@ module movedao_addrx::staking {
 
     #[test(aptos_framework = @0x1, creator = @movedao_addrx, alice = @0x3, bob = @0x4)]
     public entry fun test_vote(
-        aptos_framework: &signer, 
-        creator: &signer, 
-        alice: &signer, 
+        aptos_framework: &signer,
+        creator: &signer,
+        alice: &signer,
         bob: &signer
     ) acquires StakerProfile, Vault, VoteRepository, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
@@ -492,19 +505,24 @@ module movedao_addrx::staking {
         coin::deposit(@0x3, coin::mint(1000, &mint_cap));
         coin::deposit(@0x4, coin::mint(1000, &mint_cap));
 
-        create_vote(creator, @movedao_addrx, string::utf8(b"Test Vote"), string::utf8(b"This is a test vote"), 100, 200);
+        // Stake first (at time 0)
         stake(alice, @movedao_addrx, 500);
         stake(bob, @movedao_addrx, 300);
 
-        timestamp::update_global_time_for_test_secs(100);
+        // Wait for minimum staking period (3600 seconds)
+        timestamp::update_global_time_for_test_secs(3700);
+
+        // Create vote with start/end times relative to current time
+        create_vote(creator, @movedao_addrx, string::utf8(b"Test Vote"), string::utf8(b"This is a test vote"), 3700, 4000);
 
         vote(alice, @movedao_addrx, 0, true);
         vote(bob, @movedao_addrx, 0, false);
-        
-        // No time lock - can unstake immediately
+
+        // Can unstake now (already past minimum period)
         unstake(alice, @movedao_addrx, 200);
 
-        timestamp::update_global_time_for_test_secs(200);
+        // Move time past vote end to declare winner
+        timestamp::update_global_time_for_test_secs(4001);
         declare_winner(creator, @movedao_addrx, 0);
 
         let vote_repository = borrow_global<VoteRepository>(@movedao_addrx);
@@ -520,8 +538,8 @@ module movedao_addrx::staking {
     #[test(aptos_framework = @0x1, creator = @movedao_addrx, alice = @0x3)]
     #[expected_failure(abort_code = 202, location = movedao_addrx::staking)]
     public entry fun test_can_only_vote_once(
-        aptos_framework: &signer, 
-        creator: &signer, 
+        aptos_framework: &signer,
+        creator: &signer,
         alice: &signer
     ) acquires StakerProfile, VoteRepository, Vault, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
@@ -546,7 +564,7 @@ module movedao_addrx::staking {
 
     #[test(aptos_framework = @0x1, creator = @movedao_addrx)]
     public entry fun test_total_staked(
-        aptos_framework: &signer, 
+        aptos_framework: &signer,
         creator: &signer
     ) acquires Vault, StakerProfile, StakerRegistry {
         let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(aptos_framework);
@@ -662,8 +680,8 @@ module movedao_addrx::staking {
 
     #[test(aptos_framework = @0x1, dao1 = @movedao_addrx, dao2 = @0x5, alice = @0x3)]
     public entry fun test_multi_dao_staking(
-        aptos_framework: &signer, 
-        dao1: &signer, 
+        aptos_framework: &signer,
+        dao1: &signer,
         dao2: &signer,
         alice: &signer
     ) acquires StakerProfile, Vault, StakerRegistry {

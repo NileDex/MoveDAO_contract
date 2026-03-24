@@ -1,0 +1,125 @@
+﻿aptos : Compiling, may take 
+a little while to download 
+git dependencies...
+At line:1 char:1
++ aptos move compile 2>&1 | 
+Out-File -FilePath 
+last_compile_error.txt - ...
++ ~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: (Compili  
+  ng, may ...dependencies.   
+ ..:String) [], RemoteExc    
+eption
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+UPDATING GIT DEPENDENCY https
+://github.com/movementlabsxyz
+/aptos-core.git
+INCLUDING DEPENDENCY 
+AptosFramework
+INCLUDING DEPENDENCY 
+AptosStdlib
+INCLUDING DEPENDENCY 
+MoveStdlib
+BUILDING MoveDAO-official
+[0m[1m[38;5;11mwarning[W01
+004][0m[1m: invalid 
+documentation comment[0m
+   [0m[36mΓöîΓöÇ[0m C:\Use
+rs\josep\Desktop\CEDRAMOVEMEN
+T APPLICATION\MoveDAO\MoveDAO
+_v2_\MoveDAO_contract\sources
+\filter.move:16:5
+   [0m[36mΓöé[0m
+[0m[36m16[0m 
+[0m[36mΓöé[0m     
+[0m[33m/// Search DAOs by 
+name or description[0m
+   [0m[36mΓöé[0m     [0m
+[33m^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^[0m 
+[0m[33mDocumentation 
+comment cannot be matched to 
+a language item[0m
+
+[0m[1m[38;5;11mwarning[W01
+004][0m[1m: invalid 
+documentation comment[0m
+   [0m[36mΓöîΓöÇ[0m C:\Use
+rs\josep\Desktop\CEDRAMOVEMEN
+T APPLICATION\MoveDAO\MoveDAO
+_v2_\MoveDAO_contract\sources
+\filter.move:59:5
+   [0m[36mΓöé[0m
+[0m[36m59[0m 
+[0m[36mΓöé[0m     
+[0m[33m/// Get all DAOs 
+(wrapper for frontend 
+convenience)[0m
+   [0m[36mΓöé[0m     [0m
+[33m^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^[
+0m [0m[33mDocumentation 
+comment cannot be matched to 
+a language item[0m
+
+[0m[1m[38;5;11mwarning[0m
+[1m: invalid documentation 
+comment[0m
+   [0m[36mΓöîΓöÇ[0m C:\Use
+rs\josep\Desktop\CEDRAMOVEMEN
+T APPLICATION\MoveDAO\MoveDAO
+_v2_\MoveDAO_contract\sources
+\filter.move:16:5
+   [0m[36mΓöé[0m
+[0m[36m16[0m 
+[0m[36mΓöé[0m     
+[0m[33m/// Search DAOs by 
+name or description[0m
+   [0m[36mΓöé[0m     [0m
+[33m^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^[0m 
+[0m[33mDocumentation 
+comment cannot be matched to 
+a language item[0m
+
+[0m[1m[38;5;11mwarning[0m
+[1m: invalid documentation 
+comment[0m
+   [0m[36mΓöîΓöÇ[0m C:\Use
+rs\josep\Desktop\CEDRAMOVEMEN
+T APPLICATION\MoveDAO\MoveDAO
+_v2_\MoveDAO_contract\sources
+\filter.move:59:5
+   [0m[36mΓöé[0m
+[0m[36m59[0m 
+[0m[36mΓöé[0m     
+[0m[33m/// Get all DAOs 
+(wrapper for frontend 
+convenience)[0m
+   [0m[36mΓöé[0m     [0m
+[33m^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^[
+0m [0m[33mDocumentation 
+comment cannot be matched to 
+a language item[0m
+
+{
+  "Result": [
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::errors",
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::activity_tracker",
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::admin",
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::safe_math",
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::staking",
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::membership",
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::treasury",
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::proposal",
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::input_validation",
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::dao_core_file",
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::filter",
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::platform_stats",
+    "00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75::time_security"
+  ]
+}

@@ -202,7 +202,7 @@ module movedao_addrx::input_validation {
     #[test]
     #[expected_failure(abort_code = 4, location = movedao_addrx::input_validation)]
     public fun test_validate_dao_name_too_short() {
-        let short_name = string::utf8(b"Hi");
+        let short_name = string::utf8(b"H");
         validate_dao_name(&short_name);
     }
 

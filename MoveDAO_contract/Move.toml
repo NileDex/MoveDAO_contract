@@ -1,10 +1,10 @@
 [package]
 name = "MoveDAO-official"
-version = "0.0.2"
+version = "0.0.3"
 authors = []
 
 [addresses]
-movedao_addrx = "0x68a5b5caaa956e8f124cd2f01451c73886dc60b88797ba3da254263bd7a4818b"
+movedao_addrx = "0x00eb30f24eab56506b8abaea431fb0c6f6aa64622018298b54b1c3d40006fc75"
 aptos_framework = "0x1"
 
 [dev-addresses]

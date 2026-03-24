@@ -19,6 +19,8 @@ module movedao_addrx::dao_core_file {
     use movedao_addrx::treasury::Treasury;
     use aptos_framework::object::Object;
     use aptos_std::simple_map::{Self, SimpleMap};
+    use aptos_framework::coin;
+    use aptos_framework::aptos_coin::AptosCoin;
 
     // Image data can be either a URL or binary data
     struct ImageData has copy, drop, store {
@@ -133,6 +135,11 @@ module movedao_addrx::dao_core_file {
         total_subnames: u64
     }
 
+    struct PlatformConfig has key {
+        creation_fee: u64,      // Fee in Octas (e.g. 1 MOVE = 100,000,000)
+        fee_recipient: address  // Address to receive fees
+    }
+
     // Module initialization - automatically creates registry on deployment
     fun init_module(account: &signer) {
         // This function is called automatically when the module is first published
@@ -147,6 +154,12 @@ module movedao_addrx::dao_core_file {
         move_to(account, SubnameRegistry {
             used_subnames: simple_map::create<string::String, address>(),
             total_subnames: 0
+        });
+
+        // Initialize platform config with default fee (100 MOVE)
+        move_to(account, PlatformConfig {
+            creation_fee: 10000000000, // 100 MOVE tokens
+            fee_recipient: signer::address_of(account)
         });
 
         // Initialize global activity tracker
@@ -240,6 +253,34 @@ module movedao_addrx::dao_core_file {
         // This function is kept for backward compatibility but does nothing
         let _addr = signer::address_of(admin);
         // Registry should already exist from module initialization
+    }
+
+    // Update platform configuration (Admin only)
+    public entry fun set_platform_config(
+        admin: &signer,
+        new_fee: u64,
+        new_recipient: address
+    ) acquires PlatformConfig {
+        let addr = signer::address_of(admin);
+        assert!(addr == @movedao_addrx, error::permission_denied(1)); // Only module admin
+        assert!(exists<PlatformConfig>(@movedao_addrx), errors::not_found());
+
+        let config = borrow_global_mut<PlatformConfig>(@movedao_addrx);
+        config.creation_fee = new_fee;
+        config.fee_recipient = new_recipient;
+    }
+
+    // NEW: One-time manual initialization for contract upgrades
+    public entry fun initialize_fee_config(admin: &signer) {
+        let addr = signer::address_of(admin);
+        assert!(addr == @movedao_addrx, error::permission_denied(1)); // Only admin
+        
+        if (!exists<PlatformConfig>(addr)) {
+            move_to(admin, PlatformConfig {
+                creation_fee: 10000000000, // 100 MOVE
+                fee_recipient: addr
+            });
+        }
     }
 
     // Function to manually add an existing DAO to the registry (for retroactive registration)
@@ -339,15 +380,17 @@ module movedao_addrx::dao_core_file {
         logo: vector<u8>,
         background: vector<u8>,
         min_stake_to_join: u64,
+        staking_type: u8,              // NEW: 1 = MOVE tokens, 2 = Fungible Asset
+        fa_metadata_address: address,  // NEW: FA token address (only used if staking_type = 2)
         x_link: string::String,        // X (Twitter) URL (optional)
         discord_link: string::String,  // Discord URL (optional)
         telegram_link: string::String, // Telegram URL (optional)
         website: string::String,       // Website URL (optional)
         category: string::String       // DeFi, NFT, Infrastructure, Gaming, Social, etc.
-    ) acquires DAORegistry, SubnameRegistry {
+    ) acquires DAORegistry, SubnameRegistry, PlatformConfig {
         let logo_data = create_image_from_data(logo);
         let background_data = create_image_from_data(background);
-        create_dao_internal(account, name, subname, description, logo_data, background_data, min_stake_to_join, x_link, discord_link, telegram_link, website, category);
+        create_dao_internal(account, name, subname, description, logo_data, background_data, min_stake_to_join, staking_type, fa_metadata_address, x_link, discord_link, telegram_link, website, category);
     }
 
     // Create DAO with URL images
@@ -359,15 +402,17 @@ module movedao_addrx::dao_core_file {
         logo_url: string::String,
         background_url: string::String,
         min_stake_to_join: u64,
+        staking_type: u8,              // NEW: 1 = MOVE tokens, 2 = Fungible Asset
+        fa_metadata_address: address,  // NEW: FA token address (only used if staking_type = 2)
         x_link: string::String,
         discord_link: string::String,
         telegram_link: string::String,
         website: string::String,
         category: string::String
-    ) acquires DAORegistry, SubnameRegistry {
+    ) acquires DAORegistry, SubnameRegistry, PlatformConfig {
         let logo_data = create_image_from_url(logo_url);
         let background_data = create_image_from_url(background_url);
-        create_dao_internal(account, name, subname, description, logo_data, background_data, min_stake_to_join, x_link, discord_link, telegram_link, website, category);
+        create_dao_internal(account, name, subname, description, logo_data, background_data, min_stake_to_join, staking_type, fa_metadata_address, x_link, discord_link, telegram_link, website, category);
     }
 
     // Create DAO with mixed image types (URL + binary or vice versa)
@@ -383,12 +428,14 @@ module movedao_addrx::dao_core_file {
         background_url: string::String,
         background_data: vector<u8>,
         min_stake_to_join: u64,
+        staking_type: u8,              // NEW: 1 = MOVE tokens, 2 = Fungible Asset
+        fa_metadata_address: address,  // NEW: FA token address (only used if staking_type = 2)
         x_link: string::String,
         discord_link: string::String,
         telegram_link: string::String,
         website: string::String,
         category: string::String
-    ) acquires DAORegistry, SubnameRegistry {
+    ) acquires DAORegistry, SubnameRegistry, PlatformConfig {
         let logo_image = if (logo_is_url) {
             create_image_from_url(logo_url)
         } else {
@@ -401,7 +448,7 @@ module movedao_addrx::dao_core_file {
             create_image_from_data(background_data)
         };
 
-        create_dao_internal(account, name, subname, description, logo_image, background_image, min_stake_to_join, x_link, discord_link, telegram_link, website, category);
+        create_dao_internal(account, name, subname, description, logo_image, background_image, min_stake_to_join, staking_type, fa_metadata_address, x_link, discord_link, telegram_link, website, category);
     }
 
     // Internal function to create DAO (used by all public create functions)
@@ -413,13 +460,24 @@ module movedao_addrx::dao_core_file {
         logo: ImageData,
         background: ImageData,
         min_stake_to_join: u64,
+        staking_type: u8,
+        fa_metadata_address: address,
         x_link: string::String,
         discord_link: string::String,
         telegram_link: string::String,
         website: string::String,
         category: string::String
-    ) acquires DAORegistry, SubnameRegistry {
+    ) acquires DAORegistry, SubnameRegistry, PlatformConfig {
         let addr = signer::address_of(account);
+
+        // Process creation fee payment to deployer
+        if (exists<PlatformConfig>(@movedao_addrx)) {
+            let config = borrow_global<PlatformConfig>(@movedao_addrx);
+            if (config.creation_fee > 0) {
+                // Transfer fee from creator to fee recipient
+                coin::transfer<AptosCoin>(account, config.fee_recipient, config.creation_fee);
+            };
+        };
         // Allow multiple DAOs per address - comment out existence check
         // assert!(!exists<DAOInfo>(addr), error::already_exists(0));
 
@@ -472,17 +530,19 @@ module movedao_addrx::dao_core_file {
             admin::init_admin(account, 1);
         };
         
-        // Membership system
+        // Membership system - initialize with staking type
         if (!membership::is_membership_initialized(addr)) {
-            membership::initialize_with_min_stake(account, min_stake_to_join);
+            membership::initialize_with_staking_type(account, min_stake_to_join, 6000000, staking_type, fa_metadata_address);
         };
         
         // Proposal system
         if (!proposal::has_proposals(addr)) {
             proposal::initialize_proposals(account);
         };
-        
-        // Staking system
+
+        let _ = staking_type;
+        let _ = fa_metadata_address;
+
         if (!staking::is_staking_initialized(addr)) {
             staking::init_staking(account);
         };
@@ -1057,6 +1117,22 @@ module movedao_addrx::dao_core_file {
         result
     }
 
+    public fun get_summary_address(summary: &DAOSummary): address {
+        summary.address
+    }
+
+    public fun get_summary_name(summary: &DAOSummary): string::String {
+        summary.name
+    }
+
+    public fun get_summary_description(summary: &DAOSummary): string::String {
+        summary.description
+    }
+
+    public fun get_summary_created_at(summary: &DAOSummary): u64 {
+        summary.created_at
+    }
+
     // Check if a subname is available for use
     #[view]
     public fun is_subname_taken(subname: string::String): bool acquires SubnameRegistry {
@@ -1116,6 +1192,22 @@ module movedao_addrx::dao_core_file {
         assert!(exists<DAOInfo>(movedao_addrx), errors::not_found());
         let dao_info = borrow_global<DAOInfo>(movedao_addrx);
         dao_info.website
+    }
+
+    // Get DAO logo
+    #[view]
+    public fun get_dao_logo(movedao_addrx: address): ImageData acquires DAOInfo {
+        assert!(exists<DAOInfo>(movedao_addrx), errors::not_found());
+        let dao_info = borrow_global<DAOInfo>(movedao_addrx);
+        dao_info.logo
+    }
+
+    // Get DAO background
+    #[view]
+    public fun get_dao_background(movedao_addrx: address): ImageData acquires DAOInfo {
+        assert!(exists<DAOInfo>(movedao_addrx), errors::not_found());
+        let dao_info = borrow_global<DAOInfo>(movedao_addrx);
+        dao_info.background
     }
 
     // Get all DAO links (X, Discord, Telegram, Website)
